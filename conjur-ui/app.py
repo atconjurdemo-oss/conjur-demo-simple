@@ -337,21 +337,23 @@ def audit():
     error     = None
     try:
         raw_lines = _get_conjur_logs(lines)
-        keywords = ["authenticate", "fetch_secret", "policy", "CONJ000",
-                    "Failed", "Unauthorized", "permission", "403", "401"]
+        skip = ["GET /health", "GET /", "200 OK", "StatusController",
+                "Parameters:", "Processing by Status", "kube-probe"]
+        keywords = ["authenticate", "policy", "CONJ000",
+                    "Failed", "Unauthorized", "permission", "secret",
+                    "403", "401", "successfully"]
         for line in raw_lines:
-            if any(x in line for x in ["GET /", "200 OK", "StatusController",
-                                        "Parameters:", "Processing by Status"]):
+            # Always skip noisy health check lines
+            if any(x in line for x in skip):
                 continue
             if filter_kw:
+                # User-defined filter — show any matching line
                 if filter_kw.lower() in line.lower():
                     events.append(line)
             else:
+                # Default — show security-relevant lines only
                 if any(k.lower() in line.lower() for k in keywords):
                     events.append(line)
-        if not events and not filter_kw:
-            events = [l for l in raw_lines
-                      if not any(x in l for x in ["GET /", "200 OK", "StatusController"])]
     except Exception as e:
         error = str(e)
 

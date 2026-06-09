@@ -6,12 +6,12 @@
   <span class="text-muted small">Live from conjur-oss pod logs</span>
 </div>
 
-<form method="get" class="row g-2 mb-3">
+<form method="get" class="row g-2 mb-3 align-items-center">
   <div class="col-auto">
     <label class="col-form-label">Lines</label>
   </div>
   <div class="col-auto">
-    <select name="lines" class="form-select form-select-sm" onchange="this.form.submit()">
+    <select name="lines" class="form-select form-select-sm">
       {% for n in [100, 200, 500, 1000] %}
       <option value="{{ n }}" {% if n == lines %}selected{% endif %}>{{ n }}</option>
       {% endfor %}
@@ -19,13 +19,12 @@
   </div>
   <div class="col-auto">
     <input type="text" name="filter" class="form-control form-control-sm"
-           placeholder="Filter (e.g. webapp, authenticate, 401)"
-           value="{{ filter_kw }}">
+           placeholder="Filter keywords (e.g. webapp, authenticate, 401)"
+           value="{{ filter_kw }}" style="min-width:300px">
   </div>
   <div class="col-auto">
-    <button type="submit" class="btn btn-sm btn-secondary">Apply</button>
-    <a href="{{ url_for('audit') }}" class="btn btn-sm btn-outline-secondary">Reset</a>
-    <a href="{{ url_for('audit', lines=lines, filter=filter_kw) }}" class="btn btn-sm btn-outline-primary">Refresh</a>
+    <button type="submit" class="btn btn-sm btn-primary">Apply</button>
+    <a href="{{ url_for('audit') }}" class="btn btn-sm btn-outline-secondary ms-1">Reset</a>
   </div>
 </form>
 
