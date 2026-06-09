@@ -1,4 +1,4 @@
-# database.yml — secrets and host identity for the webapp
+# database.yml — secrets and host identities for webapp and conjur-ui
 # Load with: conjur policy load -b myapp -f conjur-policy/database.yml
 ---
 - !policy
@@ -11,12 +11,21 @@
     - !variable name
     - !variable root-password
 
+# ── webapp host ───────────────────────────────────────────────────────────────
 - !host
   id: webapp
   annotations:
     authn-jwt/k8s-cluster/kubernetes.io/namespace: securetask
     authn-jwt/k8s-cluster/kubernetes.io/serviceaccount/name: webapp
 
+# ── conjur-ui host ────────────────────────────────────────────────────────────
+- !host
+  id: conjur-ui
+  annotations:
+    authn-jwt/k8s-cluster/kubernetes.io/namespace: conjur
+    authn-jwt/k8s-cluster/kubernetes.io/serviceaccount/name: conjur-ui
+
+# ── Permits: webapp ───────────────────────────────────────────────────────────
 - !permit
   role: !host webapp
   privilege: [read, execute]
@@ -46,3 +55,29 @@
   role: !host webapp
   privilege: [read, execute]
   resource: !variable database/root-password
+
+# ── Permits: conjur-ui (read-only, no root-password) ─────────────────────────
+- !permit
+  role: !host conjur-ui
+  privilege: [read, execute]
+  resource: !variable database/host
+
+- !permit
+  role: !host conjur-ui
+  privilege: [read, execute]
+  resource: !variable database/port
+
+- !permit
+  role: !host conjur-ui
+  privilege: [read, execute]
+  resource: !variable database/user
+
+- !permit
+  role: !host conjur-ui
+  privilege: [read, execute]
+  resource: !variable database/password
+
+- !permit
+  role: !host conjur-ui
+  privilege: [read, execute]
+  resource: !variable database/name

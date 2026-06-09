@@ -12,3 +12,7 @@
       role: !host /myapp/webapp
       privilege: [authenticate]
       resource: !webservice
+    - !permit
+      role: !host /myapp/conjur-ui
+      privilege: [authenticate]
+      resource: !webservice
