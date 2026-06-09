@@ -1,49 +1,32 @@
 """
 Conjur OSS UI — Python/Flask web interface for CyberArk Conjur OSS.
-All user actions are recorded to MySQL via audit_db.py.
-Credentials are fetched from Conjur — never hardcoded.
+Shows policies, variables, resources, and live Conjur audit logs.
+No MySQL dependency — logs are fetched directly from the Conjur pod.
 """
 
 import os
 import base64
 import logging
+import subprocess
 from functools import wraps
 
 import requests
 from flask import (Flask, render_template, request, redirect,
                    url_for, session, flash, jsonify)
 
-import audit_db
-
-logging.basicConfig(level=logging.DEBUG,
+logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s — %(message)s")
 log = logging.getLogger(__name__)
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-secret-change-in-prod")
-
-# When served under a sub-path (e.g. /ui), set APPLICATION_ROOT so url_for
-# generates correct paths. Defaults to / for local development.
-app.config["APPLICATION_ROOT"] = os.environ.get("APPLICATION_ROOT", "/")
+app.config["APPLICATION_ROOT"]    = os.environ.get("APPLICATION_ROOT", "/")
 app.config["PREFERRED_URL_SCHEME"] = "https"
 
-CONJUR_URL     = os.environ.get("CONJUR_APPLIANCE_URL", "https://conjur.conjur.duckdns.org")
+CONJUR_URL     = os.environ.get("CONJUR_APPLIANCE_URL", "https://conjur-oss.conjur.svc.cluster.local")
 CONJUR_ACCOUNT = os.environ.get("CONJUR_ACCOUNT", "myConjurAccount")
 VERIFY         = os.environ.get("CONJUR_SSL_VERIFY", "true").lower() != "false"
-
-# Initialise the audit DB pool immediately at startup using the pod JWT.
-# This is a no-op (logs a warning) if running outside the cluster.
-import threading
-
-# Initialise the audit DB pool in a background thread — never blocks the UI.
-threading.Thread(target=audit_db.init_pool, daemon=True).start()
-
-
-@app.before_request
-def ensure_audit_db():
-    """Retry DB init in background if previous attempt failed."""
-    if not audit_db.is_ready():
-        threading.Thread(target=audit_db.init_pool, daemon=True).start()
+CONJUR_NS      = os.environ.get("CONJUR_NAMESPACE", "conjur")
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -96,17 +79,12 @@ def api_post(path: str, data, content_type="text/plain") -> requests.Response:
 
 
 def _handle_expired(r: requests.Response) -> bool:
-    """If 401, clear session and redirect. Returns True if caller should abort."""
     if r.status_code == 401:
-        audit_db.record(session.get("username", "?"), "session_expired",
-                        client_ip=_ip(), result="fail")
         session.clear()
         flash("Session expired — please log in again.", "warning")
         return True
     return False
 
-
-# ── Auth decorator ────────────────────────────────────────────────────────────
 
 def login_required(f):
     @wraps(f)
@@ -118,11 +96,11 @@ def login_required(f):
     return decorated
 
 
-# ── Routes ────────────────────────────────────────────────────────────────────
+# ── Auth ──────────────────────────────────────────────────────────────────────
 
 @app.get("/healthz")
 def healthz():
-    return jsonify(status="ok", audit_db=audit_db.is_ready())
+    return jsonify(status="ok")
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -136,15 +114,10 @@ def login():
             session["token"]    = token
             session["username"] = username
             session["api_key"]  = api_key
-
-            audit_db.record(username, "login", result="success", client_ip=_ip())
             flash("Logged in successfully.", "success")
             return redirect(url_for("dashboard"))
         except requests.HTTPError as e:
-            audit_db.record(username, "login", result="fail",
-                            detail=str(e.response.status_code), client_ip=_ip())
-            flash(f"Authentication failed ({e.response.status_code}): {e.response.text}",
-                  "danger")
+            flash(f"Authentication failed ({e.response.status_code}): {e.response.text}", "danger")
         except Exception as e:
             flash(f"Connection error: {e}", "danger")
     return render_template("login.html", conjur_url=CONJUR_URL, account=CONJUR_ACCOUNT)
@@ -152,7 +125,6 @@ def login():
 
 @app.get("/logout")
 def logout():
-    audit_db.record(session.get("username", "?"), "logout", client_ip=_ip())
     session.clear()
     flash("Logged out.", "info")
     return redirect(url_for("login"))
@@ -164,12 +136,8 @@ def refresh():
     try:
         token = conjur_authenticate(session["username"], session["api_key"])
         session["token"] = token
-        audit_db.record(session["username"], "token_refresh",
-                        result="success", client_ip=_ip())
         flash("Token refreshed.", "success")
     except Exception as e:
-        audit_db.record(session.get("username", "?"), "token_refresh",
-                        result="fail", detail=str(e), client_ip=_ip())
         flash(f"Refresh failed: {e}", "danger")
     return redirect(request.referrer or url_for("dashboard"))
 
@@ -179,39 +147,30 @@ def refresh():
 @app.get("/")
 @login_required
 def dashboard():
-    health = {}
-    server_info = {}
-    authenticators = {}
-
+    health = server_info = authenticators = {}
     try:
         r = api_get("/health")
-        health = r.json() if r.ok else {"error": f"HTTP {r.status_code}: {r.text}"}
+        health = r.json() if r.ok else {"error": f"HTTP {r.status_code}"}
     except Exception as e:
         health = {"error": str(e)}
-
     try:
         r = api_get("/info")
         if r.ok:
             server_info = r.json()
-    except Exception as e:
-        log.warning("/info error: %s", e)
-
+    except Exception:
+        pass
     try:
         r = api_get(f"/{CONJUR_ACCOUNT}/authenticators")
         if r.ok:
             authenticators = r.json()
-    except Exception as e:
-        log.warning("/authenticators error: %s", e)
-
-    audit_db.record(session["username"], "view_dashboard", client_ip=_ip())
+    except Exception:
+        pass
     return render_template("dashboard.html",
-                           health=health,
-                           server_info=server_info,
+                           health=health, server_info=server_info,
                            authenticators=authenticators,
-                           conjur_url=CONJUR_URL,
-                           account=CONJUR_ACCOUNT,
+                           conjur_url=CONJUR_URL, account=CONJUR_ACCOUNT,
                            username=session.get("username"),
-                           audit_ready=audit_db.is_ready())
+                           audit_ready=True)
 
 
 # ── Variables ─────────────────────────────────────────────────────────────────
@@ -226,12 +185,9 @@ def variables():
     if r.ok:
         items = r.json()
     else:
-        flash(f"Could not load variables: HTTP {r.status_code} — {r.text}", "danger")
-    audit_db.record(session["username"], "list_variables",
-                    detail=f"count={len(items)}", client_ip=_ip())
+        flash(f"Could not load variables: HTTP {r.status_code}", "danger")
     return render_template("variables.html", variables=items,
-                           account=CONJUR_ACCOUNT,
-                           username=session.get("username"))
+                           account=CONJUR_ACCOUNT, username=session.get("username"))
 
 
 @app.route("/variables/get", methods=["POST"])
@@ -243,13 +199,8 @@ def variable_get():
     r = api_get(f"/secrets/{CONJUR_ACCOUNT}/variable/{encoded}")
     if r.ok:
         value = r.text
-        audit_db.record(session["username"], "get_variable",
-                        resource=var_id, result="success", client_ip=_ip())
     else:
         error = f"HTTP {r.status_code}: {r.text}"
-        audit_db.record(session["username"], "get_variable",
-                        resource=var_id, result="fail",
-                        detail=error, client_ip=_ip())
     return render_template("variable_value.html",
                            var_id=var_id, value=value, error=error,
                            username=session.get("username"))
@@ -265,13 +216,8 @@ def variable_set():
     if _handle_expired(r):
         return redirect(url_for("login"))
     if r.ok:
-        audit_db.record(session["username"], "set_variable",
-                        resource=var_id, result="success", client_ip=_ip())
         flash(f"Variable '{var_id}' updated successfully.", "success")
     else:
-        audit_db.record(session["username"], "set_variable",
-                        resource=var_id, result="fail",
-                        detail=f"HTTP {r.status_code}: {r.text}", client_ip=_ip())
         flash(f"Set variable failed: HTTP {r.status_code} — {r.text}", "danger")
     return redirect(url_for("variables"))
 
@@ -288,12 +234,9 @@ def policies():
     if r.ok:
         items = r.json()
     else:
-        flash(f"Could not load policies: HTTP {r.status_code} — {r.text}", "danger")
-    audit_db.record(session["username"], "list_policies",
-                    detail=f"count={len(items)}", client_ip=_ip())
+        flash(f"Could not load policies: HTTP {r.status_code}", "danger")
     return render_template("policies.html", policies=items,
-                           account=CONJUR_ACCOUNT,
-                           username=session.get("username"))
+                           account=CONJUR_ACCOUNT, username=session.get("username"))
 
 
 @app.route("/policies/load", methods=["POST"])
@@ -302,37 +245,24 @@ def policy_load():
     branch      = request.form.get("branch", "root").strip()
     policy_yaml = request.form.get("policy_yaml", "").strip()
     method      = request.form.get("method", "put")
-
     if not policy_yaml:
         flash("Policy YAML is empty.", "warning")
         return redirect(url_for("policies"))
-
     encoded = requests.utils.quote(branch, safe="")
     path    = f"/policies/{CONJUR_ACCOUNT}/policy/{encoded}"
     data    = policy_yaml.encode()
-
     if method == "patch":
         r = api_patch(path, data)
     elif method == "post":
         r = api_post(path, data, content_type="application/x-yaml")
     else:
         r = api_put(path, data)
-
     if _handle_expired(r):
         return redirect(url_for("login"))
-
     if r.ok:
-        audit_db.record(session["username"], "load_policy",
-                        resource=branch, detail=f"method={method}",
-                        result="success", client_ip=_ip())
         flash(f"Policy loaded into '{branch}' successfully.", "success")
     else:
-        audit_db.record(session["username"], "load_policy",
-                        resource=branch,
-                        detail=f"method={method} HTTP {r.status_code}: {r.text[:300]}",
-                        result="fail", client_ip=_ip())
         flash(f"Policy load failed: HTTP {r.status_code} — {r.text}", "danger")
-
     return redirect(url_for("policies"))
 
 
@@ -354,25 +284,59 @@ def resources():
         items = r.json()
     else:
         flash(f"HTTP {r.status_code}: {r.text}", "danger")
-    audit_db.record(session["username"], "list_resources",
-                    detail=f"kind={kind or 'all'} count={len(items)}",
-                    client_ip=_ip())
     return render_template("resources.html", resources=items,
                            kind=kind, account=CONJUR_ACCOUNT,
                            username=session.get("username"))
 
 
-# ── Audit log ─────────────────────────────────────────────────────────────────
+# ── Conjur Audit Logs ─────────────────────────────────────────────────────────
 
 @app.get("/audit")
 @login_required
 def audit():
-    limit  = min(int(request.args.get("limit", 100)), 500)
-    events = audit_db.get_recent(limit)
-    audit_db.record(session["username"], "view_audit",
-                    detail=f"limit={limit}", client_ip=_ip())
-    return render_template("audit.html", events=events,
-                           limit=limit, audit_ready=audit_db.is_ready(),
+    """Fetch live Conjur pod logs filtered to security-relevant events."""
+    lines  = int(request.args.get("lines", 200))
+    filter_kw = request.args.get("filter", "")
+    events = []
+    error  = None
+    try:
+        result = subprocess.run(
+            ["kubectl", "-n", CONJUR_NS, "logs", "deployment/conjur-oss",
+             "-c", "conjur-oss", f"--tail={lines}"],
+            capture_output=True, text=True, timeout=10
+        )
+        raw_lines = result.stdout.splitlines()
+        # Filter to security-relevant events
+        keywords = ["authenticate", "fetch_secret", "policy", "CONJ000",
+                    "Failed", "Unauthorized", "permission", "403", "401"]
+        for line in raw_lines:
+            # Skip noisy health check lines
+            if any(x in line for x in ["GET /", "200 OK", "StatusController",
+                                        "Parameters:", "Processing by Status"]):
+                continue
+            # Include if matches keyword filter or security keywords
+            if filter_kw:
+                if filter_kw.lower() in line.lower():
+                    events.append(line)
+            else:
+                if any(k.lower() in line.lower() for k in keywords):
+                    events.append(line)
+        if not events and not filter_kw:
+            # Show all non-health lines if nothing matched
+            events = [l for l in raw_lines
+                      if not any(x in l for x in ["GET /", "200 OK", "StatusController"])]
+    except subprocess.TimeoutExpired:
+        error = "kubectl timed out"
+    except FileNotFoundError:
+        error = "kubectl not found — running outside cluster?"
+    except Exception as e:
+        error = str(e)
+
+    return render_template("audit.html",
+                           events=events, lines=lines,
+                           filter_kw=filter_kw,
+                           error=error,
+                           audit_ready=True,
                            account=CONJUR_ACCOUNT,
                            username=session.get("username"))
 

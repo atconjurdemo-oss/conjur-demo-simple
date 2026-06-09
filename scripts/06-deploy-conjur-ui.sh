@@ -75,7 +75,7 @@ FLASK_KEY="$(openssl rand -hex 32)"
 EXTERNAL_IP="$(kubectl -n ingress-nginx get svc ingress-nginx-controller \
   -o jsonpath='{.status.loadBalancer.ingress[0].ip}')"
 
-# ServiceAccount
+# ServiceAccount + RBAC to allow kubectl logs on conjur-oss pods
 kubectl apply -f - <<EOF
 apiVersion: v1
 kind: ServiceAccount
@@ -83,6 +83,30 @@ metadata:
   name: conjur-ui
   namespace: conjur
 automountServiceAccountToken: true
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: conjur-ui-logs
+  namespace: conjur
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/log"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: conjur-ui-logs
+  namespace: conjur
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: conjur-ui-logs
+subjects:
+  - kind: ServiceAccount
+    name: conjur-ui
+    namespace: conjur
 EOF
 
 # ConfigMap

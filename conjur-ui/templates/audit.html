@@ -1,109 +1,77 @@
 {% extends "base.html" %}
-{% block title %}Audit Log — Conjur UI{% endblock %}
+{% block title %}Conjur Audit Log{% endblock %}
 {% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2>Conjur Audit Log</h2>
+  <span class="text-muted small">Live from conjur-oss pod logs</span>
+</div>
 
-<div class="page-title">Audit Log</div>
+<form method="get" class="row g-2 mb-3">
+  <div class="col-auto">
+    <label class="col-form-label">Lines</label>
+  </div>
+  <div class="col-auto">
+    <select name="lines" class="form-select form-select-sm" onchange="this.form.submit()">
+      {% for n in [100, 200, 500, 1000] %}
+      <option value="{{ n }}" {% if n == lines %}selected{% endif %}>{{ n }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-auto">
+    <input type="text" name="filter" class="form-control form-control-sm"
+           placeholder="Filter (e.g. webapp, authenticate, 401)"
+           value="{{ filter_kw }}">
+  </div>
+  <div class="col-auto">
+    <button type="submit" class="btn btn-sm btn-secondary">Apply</button>
+    <a href="{{ url_for('audit') }}" class="btn btn-sm btn-outline-secondary">Reset</a>
+    <a href="{{ url_for('audit', lines=lines, filter=filter_kw) }}" class="btn btn-sm btn-outline-primary">Refresh</a>
+  </div>
+</form>
 
-{% if not audit_ready %}
-<div class="alert alert-warning">
-  MySQL is not connected yet — log in first so the app can fetch credentials
-  from Conjur and connect to the database. Events since connection will appear here.
+{% if error %}
+<div class="alert alert-danger">
+  <strong>Error:</strong> {{ error }}<br>
+  <small>Make sure the conjur-ui ServiceAccount has permission to run kubectl logs.</small>
 </div>
 {% endif %}
 
-<!-- Controls -->
 <div class="card">
-  <div class="card-title">Filter</div>
-  <form method="get" style="display:flex; gap:.75rem; align-items:flex-end; flex-wrap:wrap;">
-    <div>
-      <label>Last N events</label>
-      <select name="limit" onchange="this.form.submit()" style="width:120px;">
-        {% for n in [50, 100, 200, 500] %}
-        <option value="{{ n }}" {% if limit == n %}selected{% endif %}>{{ n }}</option>
-        {% endfor %}
-      </select>
+  <div class="card-header d-flex justify-content-between">
+    <span>{{ events|length }} events</span>
+    <small class="text-muted">Security-relevant lines from conjur-oss container</small>
+  </div>
+  <div class="card-body p-0">
+    {% if events %}
+    <pre class="m-0 p-3" style="font-size:0.78rem; max-height:70vh; overflow-y:auto; background:#1e1e1e; color:#d4d4d4; white-space:pre-wrap; word-break:break-all;">
+{%- for line in events %}
+{%- if 'authenticate' in line.lower() and ('200' in line or 'succeeded' in line.lower()) %}
+<span style="color:#4ec9b0">{{ line }}</span>
+{%- elif '401' in line or 'failed' in line.lower() or 'unauthorized' in line.lower() or 'error' in line.lower() %}
+<span style="color:#f44747">{{ line }}</span>
+{%- elif 'policy' in line.lower() %}
+<span style="color:#dcdcaa">{{ line }}</span>
+{%- elif 'secret' in line.lower() or 'variable' in line.lower() or 'fetch' in line.lower() %}
+<span style="color:#9cdcfe">{{ line }}</span>
+{%- else %}
+{{ line }}
+{%- endif %}
+{% endfor %}
+</pre>
+    {% else %}
+    <div class="p-4 text-center text-muted">
+      No matching log lines found.<br>
+      Try removing the filter or increasing the line count.
     </div>
-  </form>
+    {% endif %}
+  </div>
 </div>
 
-<!-- Table -->
-<div class="card">
-  <div class="card-title">
-    Events
-    <span style="color:var(--muted); font-weight:400;">({{ events | length }})</span>
-  </div>
-
-  {% if events %}
-  <div style="overflow-x:auto;">
-    <table>
-      <thead>
-        <tr>
-          <th>#</th>
-          <th>Timestamp (UTC)</th>
-          <th>User</th>
-          <th>Action</th>
-          <th>Resource</th>
-          <th>Result</th>
-          <th>Detail</th>
-          <th>IP</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for e in events %}
-        <tr>
-          <td style="color:var(--muted); font-size:.75rem;">{{ e.id }}</td>
-          <td style="white-space:nowrap; font-size:.78rem; color:var(--muted);">
-            {{ e.ts }}
-          </td>
-          <td><strong>{{ e.username }}</strong></td>
-          <td>
-            {% set action = e.action %}
-            {% if action in ['login'] %}
-              <span class="badge badge-green">{{ action }}</span>
-            {% elif action in ['logout'] %}
-              <span class="badge badge-blue">{{ action }}</span>
-            {% elif action in ['load_policy'] %}
-              <span class="badge badge-orange">{{ action }}</span>
-            {% elif action in ['set_variable'] %}
-              <span class="badge badge-purple">{{ action }}</span>
-            {% elif action in ['get_variable'] %}
-              <span class="badge" style="background:#1a1a2d;color:#90cdf4;border:1px solid #2b4080;">{{ action }}</span>
-            {% elif e.result == 'fail' or action == 'session_expired' %}
-              <span class="badge badge-red">{{ action }}</span>
-            {% else %}
-              <span class="badge" style="background:var(--border);color:var(--muted);">{{ action }}</span>
-            {% endif %}
-          </td>
-          <td style="font-size:.78rem;">
-            {% if e.resource %}
-              <code>{{ e.resource }}</code>
-            {% else %}—{% endif %}
-          </td>
-          <td>
-            {% if e.result == 'success' %}
-              <span class="badge badge-green">✓</span>
-            {% elif e.result == 'fail' %}
-              <span class="badge badge-red">✗</span>
-            {% else %}
-              <span style="color:var(--muted);">{{ e.result }}</span>
-            {% endif %}
-          </td>
-          <td style="font-size:.75rem; color:var(--muted); max-width:260px;
-                     overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
-              title="{{ e.detail }}">
-            {{ e.detail or '—' }}
-          </td>
-          <td style="font-size:.75rem; color:var(--muted);">{{ e.client_ip or '—' }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-  {% else %}
-    <p style="color:var(--muted); font-size:.875rem;">
-      No events yet — actions you take in the UI will appear here.
-    </p>
-  {% endif %}
+<div class="mt-2 text-muted small">
+  <strong>Color key:</strong>
+  <span style="color:#4ec9b0">■</span> Successful auth &nbsp;
+  <span style="color:#f44747">■</span> Failures / errors &nbsp;
+  <span style="color:#dcdcaa">■</span> Policy operations &nbsp;
+  <span style="color:#9cdcfe">■</span> Secret fetches
 </div>
-
 {% endblock %}
