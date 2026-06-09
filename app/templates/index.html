@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Incident Tracker — SecureOps</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      min-height: 100vh;
+    }
+
+    header {
+      background: #1a1f2e;
+      border-bottom: 1px solid #2d3748;
+      padding: 16px 32px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    header .logo { font-size: 20px; font-weight: 700; color: #63b3ed; }
+    header .sub  { font-size: 12px; color: #718096; margin-top: 2px; }
+    header .conjur-badge {
+      margin-left: auto;
+      background: #1a2744;
+      border: 1px solid #2b6cb0;
+      border-radius: 6px;
+      padding: 4px 12px;
+      font-size: 11px;
+      color: #90cdf4;
+    }
+    header .conjur-badge span { color: #48bb78; font-weight: 600; }
+
+    main { max-width: 900px; margin: 0 auto; padding: 32px 16px; }
+
+    /* New incident form */
+    .new-incident {
+      background: #1a1f2e;
+      border: 1px solid #2d3748;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 32px;
+    }
+    .new-incident h2 { font-size: 14px; font-weight: 600; color: #a0aec0; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .form-row { display: flex; gap: 10px; flex-wrap: wrap; }
+    .form-row input[type=text] {
+      flex: 1; min-width: 200px;
+      background: #0f1117; border: 1px solid #2d3748; border-radius: 8px;
+      color: #e2e8f0; padding: 10px 14px; font-size: 14px;
+    }
+    .form-row input[type=text]:focus { outline: none; border-color: #4299e1; }
+    .form-row select {
+      background: #0f1117; border: 1px solid #2d3748; border-radius: 8px;
+      color: #e2e8f0; padding: 10px 14px; font-size: 14px; cursor: pointer;
+    }
+    .form-row textarea {
+      width: 100%; margin-top: 10px;
+      background: #0f1117; border: 1px solid #2d3748; border-radius: 8px;
+      color: #e2e8f0; padding: 10px 14px; font-size: 14px; resize: vertical; min-height: 60px;
+    }
+    .form-row textarea:focus, .form-row select:focus { outline: none; border-color: #4299e1; }
+    .btn-submit {
+      background: #3182ce; color: #fff; border: none; border-radius: 8px;
+      padding: 10px 20px; font-size: 14px; font-weight: 600; cursor: pointer;
+      white-space: nowrap;
+    }
+    .btn-submit:hover { background: #2b6cb0; }
+
+    /* Stats bar */
+    .stats { display: flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
+    .stat {
+      background: #1a1f2e; border: 1px solid #2d3748; border-radius: 8px;
+      padding: 12px 20px; text-align: center; flex: 1; min-width: 100px;
+    }
+    .stat .num { font-size: 24px; font-weight: 700; }
+    .stat .lbl { font-size: 11px; color: #718096; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 2px; }
+    .stat.critical .num { color: #fc8181; }
+    .stat.open-s .num    { color: #f6ad55; }
+    .stat.resolved .num  { color: #68d391; }
+
+    /* Incidents table */
+    .incidents-header {
+      font-size: 13px; color: #718096; text-transform: uppercase;
+      letter-spacing: 0.05em; margin-bottom: 12px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .incidents-header .count {
+      background: #2d3748; border-radius: 12px; padding: 2px 8px; font-size: 11px;
+    }
+
+    .incident-card {
+      background: #1a1f2e; border: 1px solid #2d3748; border-radius: 10px;
+      padding: 16px 20px; margin-bottom: 10px;
+      display: grid; grid-template-columns: auto 1fr auto auto; gap: 12px; align-items: start;
+    }
+    .incident-card:hover { border-color: #4a5568; }
+    .incident-card.resolved { opacity: 0.6; }
+
+    /* Severity badge */
+    .sev {
+      border-radius: 6px; padding: 3px 10px; font-size: 11px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap; margin-top: 2px;
+    }
+    .sev.critical { background: #742a2a; color: #fc8181; border: 1px solid #c53030; }
+    .sev.high     { background: #744210; color: #f6ad55; border: 1px solid #c05621; }
+    .sev.medium   { background: #744210; color: #fbd38d; border: 1px solid #b7791f; }
+    .sev.low      { background: #1a365d; color: #90cdf4; border: 1px solid #2b6cb0; }
+
+    .incident-body .title { font-size: 15px; font-weight: 600; color: #e2e8f0; }
+    .incident-body .notes { font-size: 13px; color: #718096; margin-top: 4px; }
+    .incident-body .meta  { font-size: 11px; color: #4a5568; margin-top: 6px; }
+
+    /* Status button */
+    .btn-status {
+      border: none; border-radius: 6px; padding: 4px 12px; font-size: 12px;
+      font-weight: 600; cursor: pointer; white-space: nowrap;
+    }
+    .btn-status.open         { background: #2d3748; color: #f6ad55; }
+    .btn-status.investigating { background: #2d3748; color: #90cdf4; }
+    .btn-status.resolved     { background: #2d3748; color: #68d391; }
+    .btn-status:hover { filter: brightness(1.2); }
+
+    .btn-delete {
+      background: none; border: none; color: #4a5568; cursor: pointer;
+      font-size: 16px; padding: 4px 6px; border-radius: 4px;
+    }
+    .btn-delete:hover { color: #fc8181; background: #2d3748; }
+
+    .empty {
+      text-align: center; padding: 60px 20px; color: #4a5568;
+    }
+    .empty .icon { font-size: 48px; margin-bottom: 12px; }
+    .empty p { font-size: 14px; }
+
+    footer {
+      text-align: center; padding: 24px; font-size: 11px; color: #4a5568;
+      border-top: 1px solid #1a1f2e; margin-top: 32px;
+    }
+    footer span { color: #48bb78; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="logo">⚡ SecureOps</div>
+    <div class="sub">Incident Tracker</div>
+  </div>
+  <div class="conjur-badge">
+    DB credentials via <span>CyberArk Conjur</span> · JWT authn
+  </div>
+</header>
+
+<main>
+
+  <!-- New incident form -->
+  <div class="new-incident">
+    <h2>Report Incident</h2>
+    <form action="/app/incidents" method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="form-row">
+        <input type="text" name="title" placeholder="Incident title…" required>
+        <select name="severity">
+          <option value="critical">🔴 Critical</option>
+          <option value="high">🟠 High</option>
+          <option value="medium" selected>🟡 Medium</option>
+          <option value="low">🔵 Low</option>
+        </select>
+        <button type="submit" class="btn-submit">+ Report</button>
+      </div>
+      <div class="form-row">
+        <textarea name="notes" placeholder="Notes (optional)…"></textarea>
+      </div>
+    </form>
+  </div>
+
+  <!-- Stats -->
+  {% set critical_count  = incidents | selectattr('severity','eq','critical') | list | length %}
+  {% set open_count      = incidents | selectattr('status','ne','resolved') | list | length %}
+  {% set resolved_count  = incidents | selectattr('status','eq','resolved') | list | length %}
+  <div class="stats">
+    <div class="stat critical">
+      <div class="num">{{ critical_count }}</div>
+      <div class="lbl">Critical</div>
+    </div>
+    <div class="stat open-s">
+      <div class="num">{{ open_count }}</div>
+      <div class="lbl">Open</div>
+    </div>
+    <div class="stat resolved">
+      <div class="num">{{ resolved_count }}</div>
+      <div class="lbl">Resolved</div>
+    </div>
+    <div class="stat">
+      <div class="num">{{ incidents | length }}</div>
+      <div class="lbl">Total</div>
+    </div>
+  </div>
+
+  <!-- Incident list -->
+  <div class="incidents-header">
+    Incidents
+    <span class="count">{{ incidents | length }}</span>
+  </div>
+
+  {% if incidents %}
+    {% for i in incidents %}
+    <div class="incident-card {{ 'resolved' if i.status == 'resolved' else '' }}">
+
+      <span class="sev {{ i.severity }}">{{ i.severity }}</span>
+
+      <div class="incident-body">
+        <div class="title">{{ i.title }}</div>
+        {% if i.notes %}<div class="notes">{{ i.notes }}</div>{% endif %}
+        <div class="meta">{{ i.created_at.strftime('%Y-%m-%d %H:%M') if i.created_at else '' }}</div>
+      </div>
+
+      <form action="/app/incidents/{{ i.id }}/advance" method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn-status {{ i.status }}">
+          {% if i.status == 'open' %}● Open
+          {% elif i.status == 'investigating' %}◎ Investigating
+          {% else %}✓ Resolved{% endif %}
+        </button>
+      </form>
+
+      <form action="/app/incidents/{{ i.id }}/delete" method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn-delete" title="Delete">✕</button>
+      </form>
+
+    </div>
+    {% endfor %}
+  {% else %}
+    <div class="empty">
+      <div class="icon">🛡️</div>
+      <p>No incidents reported. System is secure.</p>
+    </div>
+  {% endif %}
+
+</main>
+
+<footer>
+  Database credentials fetched at runtime from <span>CyberArk Conjur OSS</span> via Kubernetes JWT authentication.
+  No credentials stored in manifests, environment variables, or application code.
+</footer>
+
+</body>
+</html>

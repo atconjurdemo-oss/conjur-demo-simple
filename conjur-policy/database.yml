@@ -1,0 +1,48 @@
+# database.yml — secrets and host identity for the webapp
+# Load with: conjur policy load -b myapp -f conjur-policy/database.yml
+---
+- !policy
+  id: database
+  body:
+    - !variable host
+    - !variable port
+    - !variable user
+    - !variable password
+    - !variable name
+    - !variable root-password
+
+- !host
+  id: webapp
+  annotations:
+    authn-jwt/k8s-cluster/kubernetes.io/namespace: securetask
+    authn-jwt/k8s-cluster/kubernetes.io/serviceaccount/name: webapp
+
+- !permit
+  role: !host webapp
+  privilege: [read, execute]
+  resource: !variable database/host
+
+- !permit
+  role: !host webapp
+  privilege: [read, execute]
+  resource: !variable database/port
+
+- !permit
+  role: !host webapp
+  privilege: [read, execute]
+  resource: !variable database/user
+
+- !permit
+  role: !host webapp
+  privilege: [read, execute]
+  resource: !variable database/password
+
+- !permit
+  role: !host webapp
+  privilege: [read, execute]
+  resource: !variable database/name
+
+- !permit
+  role: !host webapp
+  privilege: [read, execute]
+  resource: !variable database/root-password

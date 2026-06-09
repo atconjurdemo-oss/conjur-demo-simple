@@ -1,0 +1,14 @@
+# authn-jwt.yml — JWT authenticator for Kubernetes
+# Load with: conjur policy load -b conjur/authn-jwt -f conjur-policy/authn-jwt.yml
+---
+- !policy
+  id: k8s-cluster
+  body:
+    - !webservice
+    - !variable jwks-uri
+    - !variable issuer
+    - !variable audience
+    - !permit
+      role: !host /myapp/webapp
+      privilege: [authenticate]
+      resource: !webservice

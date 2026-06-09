@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: conjur-config
+  namespace: securetask
+data:
+  CONJUR_APPLIANCE_URL: "https://PLACEHOLDER_DOMAIN"
+  CONJUR_ACCOUNT: "myConjurAccount"
+  CONJUR_AUTHN_JWT_URL: "https://PLACEHOLDER_DOMAIN/authn-jwt/k8s-cluster"
+  DB_HOST_SECRET:     "myapp/database/host"
+  DB_PORT_SECRET:     "myapp/database/port"
+  DB_USER_SECRET:     "myapp/database/user"
+  DB_PASSWORD_SECRET: "myapp/database/password"
+  DB_NAME_SECRET:     "myapp/database/name"

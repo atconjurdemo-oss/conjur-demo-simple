@@ -1,0 +1,7 @@
+# root.yml — top-level policy branches
+---
+- !policy
+  id: myapp
+
+- !policy
+  id: authn-jwt

@@ -1,0 +1,154 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: webapp
+  namespace: securetask
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: webapp
+  template:
+    metadata:
+      labels:
+        app: webapp
+      annotations:
+        conjur.org/container-mode: "init"
+        conjur.org/secrets-destination: "file"
+        conjur.org/conjur-secrets.webapp: |
+          - myapp_database_host: myapp/database/host
+          - myapp_database_port: myapp/database/port
+          - myapp_database_user: myapp/database/user
+          - myapp_database_password: myapp/database/password
+          - myapp_database_name: myapp/database/name
+        conjur.org/secret-file-path.webapp: "secrets.env"
+        conjur.org/secret-file-format.webapp: "dotenv"
+    spec:
+      serviceAccountName: webapp
+      automountServiceAccountToken: true
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+
+      initContainers:
+        - name: conjur-secrets-provider
+          image: cyberark/secrets-provider-for-k8s:latest
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          env:
+            - name: MY_POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: MY_POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: CONJUR_APPLIANCE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: conjur-config
+                  key: CONJUR_APPLIANCE_URL
+            - name: CONJUR_ACCOUNT
+              valueFrom:
+                configMapKeyRef:
+                  name: conjur-config
+                  key: CONJUR_ACCOUNT
+            - name: CONJUR_AUTHN_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: conjur-config
+                  key: CONJUR_AUTHN_JWT_URL
+            - name: CONJUR_AUTHN_LOGIN
+              value: host/myapp/webapp
+            - name: SECRETS_DESTINATION
+              value: file
+            - name: CONJUR_SSL_CERTIFICATE
+              valueFrom:
+                secretKeyRef:
+                  name: conjur-ssl-cert
+                  key: certificate
+          volumeMounts:
+            - name: conjur-secrets
+              mountPath: /conjur/secrets
+            - name: podinfo
+              mountPath: /conjur/podinfo
+
+      containers:
+        - name: webapp
+          image: IMAGE_PLACEHOLDER
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: conjur-config
+          env:
+            - name: CONJUR_SECRETS_VOLUME
+              value: /conjur/secrets
+            - name: FLASK_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: flask-secret
+                  key: secret-key
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: conjur-secrets
+              mountPath: /conjur/secrets
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+
+      volumes:
+        - name: conjur-secrets
+          emptyDir:
+            medium: Memory
+        - name: tmp
+          emptyDir: {}
+        - name: podinfo
+          downwardAPI:
+            items:
+              - path: annotations
+                fieldRef:
+                  fieldPath: metadata.annotations
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: webapp
+  namespace: securetask
+spec:
+  selector:
+    app: webapp
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+  type: ClusterIP

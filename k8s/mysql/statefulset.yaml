@@ -1,0 +1,171 @@
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mysql
+  namespace: securetask
+spec:
+  serviceName: mysql
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mysql
+  template:
+    metadata:
+      labels:
+        app: mysql
+      annotations:
+        conjur.org/container-mode: "init"
+        conjur.org/secrets-destination: "file"
+        conjur.org/conjur-secrets.mysql: |
+          - myapp_database_password: myapp/database/password
+          - myapp_database_root_password: myapp/database/root-password
+        conjur.org/secret-file-path.mysql: "secrets.env"
+        conjur.org/secret-file-format.mysql: "dotenv"
+    spec:
+      serviceAccountName: webapp
+      automountServiceAccountToken: true
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+
+      initContainers:
+        - name: conjur-secrets-provider
+          image: cyberark/secrets-provider-for-k8s:latest
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          env:
+            - name: MY_POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: MY_POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: CONJUR_APPLIANCE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: conjur-config
+                  key: CONJUR_APPLIANCE_URL
+            - name: CONJUR_ACCOUNT
+              valueFrom:
+                configMapKeyRef:
+                  name: conjur-config
+                  key: CONJUR_ACCOUNT
+            - name: CONJUR_AUTHN_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: conjur-config
+                  key: CONJUR_AUTHN_JWT_URL
+            - name: CONJUR_AUTHN_LOGIN
+              value: host/myapp/webapp
+            - name: SECRETS_DESTINATION
+              value: file
+            - name: CONJUR_SSL_CERTIFICATE
+              valueFrom:
+                secretKeyRef:
+                  name: conjur-ssl-cert
+                  key: certificate
+          volumeMounts:
+            - name: conjur-secrets
+              mountPath: /conjur/secrets
+            - name: podinfo
+              mountPath: /conjur/podinfo
+
+        - name: env-setup
+          image: busybox:1.36
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 999
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          command:
+            - sh
+            - -c
+            - |
+              . /conjur/secrets/secrets.env
+              echo "${myapp_database_password}"      > /mysql-secrets/app-password
+              echo "${myapp_database_root_password}" > /mysql-secrets/root-password
+          volumeMounts:
+            - name: conjur-secrets
+              mountPath: /conjur/secrets
+              readOnly: true
+            - name: mysql-secrets
+              mountPath: /mysql-secrets
+
+      containers:
+        - name: mysql
+          image: mysql:8.0.40
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+              add: ["SETGID", "SETUID", "DAC_OVERRIDE"]
+          env:
+            - name: MYSQL_ROOT_PASSWORD_FILE
+              value: /mysql-secrets/root-password
+            - name: MYSQL_PASSWORD_FILE
+              value: /mysql-secrets/app-password
+            - name: MYSQL_DATABASE
+              value: securetask
+            - name: MYSQL_USER
+              value: appuser
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/mysql
+            - name: mysql-secrets
+              mountPath: /mysql-secrets
+              readOnly: true
+
+      volumes:
+        - name: conjur-secrets
+          emptyDir:
+            medium: Memory
+        - name: mysql-secrets
+          emptyDir:
+            medium: Memory
+        - name: podinfo
+          downwardAPI:
+            items:
+              - path: annotations
+                fieldRef:
+                  fieldPath: metadata.annotations
+
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 2Gi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql
+  namespace: securetask
+spec:
+  selector:
+    app: mysql
+  ports:
+    - port: 3306
+  clusterIP: None
