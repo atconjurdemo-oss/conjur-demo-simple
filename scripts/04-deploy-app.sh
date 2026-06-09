@@ -32,6 +32,7 @@ echo "==> [2/4] Applying manifests..."
 kubectl apply -f k8s/00-namespace.yaml
 kubectl apply -f k8s/webapp/serviceaccount.yaml
 kubectl apply -f k8s/webapp/configmap.yaml
+kubectl apply -f k8s/webapp/ingress.yaml
 
 echo "==> [3/4] Deploying MySQL and webapp..."
 kubectl apply -f k8s/mysql/statefulset.yaml
@@ -47,5 +48,6 @@ kubectl -n securetask rollout status deployment/webapp --timeout=5m
 
 echo ""
 echo "Done!"
-echo "  kubectl -n securetask port-forward svc/webapp 8080:80"
-echo "  open http://localhost:8080/app"
+EXTERNAL_IP="$(kubectl -n ingress-nginx get svc ingress-nginx-controller \
+  -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo '<pending>')"
+echo "  App URL: http://${EXTERNAL_IP}/app"
