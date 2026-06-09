@@ -15,9 +15,9 @@ REGION="${REGION:-europe-west1}"
 REGISTRY="${REGION}-docker.pkg.dev/${PROJECT_ID}/conjur-demo"
 TAG="$(git rev-parse --short HEAD 2>/dev/null || date +%Y%m%d%H%M)"
 IMAGE="${REGISTRY}/conjur-ui:${TAG}"
-UI_SOURCE="../cyberark-challenge/conjur-ui/app"
+UI_SOURCE="conjur-ui"
 
-[ -d "${UI_SOURCE}" ] || { echo "ERROR: ${UI_SOURCE} not found. Clone cyberark-challenge first."; exit 1; }
+[ -d "${UI_SOURCE}" ] || { echo "ERROR: conjur-ui/ directory not found in repo root."; exit 1; }
 
 echo "==> [1/4] Building Conjur UI image..."
 gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet

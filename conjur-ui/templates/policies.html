@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Policies — Conjur UI{% endblock %}
+{% block content %}
+
+<div class="page-title">Policies</div>
+
+<!-- Load policy form -->
+<div class="card">
+  <div class="card-title">Load Policy</div>
+  <form method="post" action="{{ url_for('policy_load') }}">
+    <div class="grid-2" style="margin-bottom:.9rem;">
+      <div class="form-row" style="margin-bottom:0;">
+        <label>Branch (policy root)</label>
+        <input type="text" name="branch" value="root"
+               placeholder="e.g. root, myapp"/>
+      </div>
+      <div class="form-row" style="margin-bottom:0;">
+        <label>Method</label>
+        <select name="method">
+          <option value="put">PUT — Replace (overwrites branch)</option>
+          <option value="patch">PATCH — Update (merges/deletes)</option>
+          <option value="post">POST — Extend (adds only)</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <label>Policy YAML</label>
+      <textarea name="policy_yaml" rows="14"
+                placeholder="- !policy&#10;  id: myapp&#10;  body:&#10;    - !variable database/password"></textarea>
+    </div>
+
+    <!-- Quick-fill templates -->
+    <div style="margin-bottom:.9rem; display:flex; gap:.5rem; flex-wrap:wrap; align-items:center;">
+      <span style="font-size:.75rem; color:var(--muted);">Templates:</span>
+      <button type="button" class="btn btn-outline btn-sm"
+              onclick="fillTemplate('variable')">Variable</button>
+      <button type="button" class="btn btn-outline btn-sm"
+              onclick="fillTemplate('host')">Host</button>
+      <button type="button" class="btn btn-outline btn-sm"
+              onclick="fillTemplate('grant')">Grant</button>
+      <button type="button" class="btn btn-outline btn-sm"
+              onclick="fillTemplate('group')">Group</button>
+    </div>
+
+    <button type="submit" class="btn btn-primary">Load Policy</button>
+  </form>
+</div>
+
+<!-- Existing policy resources -->
+<div class="card">
+  <div class="card-title">
+    Policy Resources
+    <span style="color:var(--muted); font-weight:400;">({{ policies | length }})</span>
+  </div>
+  {% if policies %}
+  <table>
+    <thead>
+      <tr><th>ID</th><th>Owner</th></tr>
+    </thead>
+    <tbody>
+      {% for p in policies %}
+      <tr>
+        <td><code>{{ p.id }}</code></td>
+        <td style="color:var(--muted); font-size:.8rem;">{{ p.owner }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+    <p style="color:var(--muted); font-size:.875rem;">No policy resources found.</p>
+  {% endif %}
+</div>
+
+<script>
+const TEMPLATES = {
+  variable: `- !variable myapp/database/password\n- !variable myapp/database/user`,
+  host: `- !host\n  id: myapp/webapp\n  annotations:\n    authn-jwt/k8s-cluster/kubernetes.io/namespace: securetask`,
+  grant: `- !permit\n  role: !host myapp/webapp\n  privilege: [read, execute]\n  resource: !variable myapp/database/password`,
+  group: `- !group developers\n\n- !grant\n  role: !group developers\n  member: !user alice`
+};
+function fillTemplate(name) {
+  document.querySelector('textarea[name=policy_yaml]').value = TEMPLATES[name];
+}
+</script>
+
+{% endblock %}

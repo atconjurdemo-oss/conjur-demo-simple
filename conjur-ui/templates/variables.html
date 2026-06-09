@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Variables — Conjur UI{% endblock %}
+{% block content %}
+
+<div class="page-title">Variables</div>
+
+<div class="grid-2">
+  <!-- Get a variable value -->
+  <div class="card">
+    <div class="card-title">Get Variable Value</div>
+    <form method="post" action="{{ url_for('variable_get') }}">
+      <div class="form-row">
+        <label>Variable ID</label>
+        <input type="text" name="variable_id"
+               placeholder="e.g. myapp/database/password" required/>
+      </div>
+      <button type="submit" class="btn btn-primary">Retrieve</button>
+    </form>
+  </div>
+
+  <!-- Set a variable value -->
+  <div class="card">
+    <div class="card-title">Set Variable Value</div>
+    <form method="post" action="{{ url_for('variable_set') }}">
+      <div class="form-row">
+        <label>Variable ID</label>
+        <input type="text" name="variable_id"
+               placeholder="e.g. myapp/database/password" required/>
+      </div>
+      <div class="form-row">
+        <label>New Value</label>
+        <input type="text" name="value" placeholder="New secret value" required/>
+      </div>
+      <button type="submit" class="btn btn-success">Update</button>
+    </form>
+  </div>
+</div>
+
+<!-- Variable list -->
+<div class="card">
+  <div class="card-title">
+    All Variables
+    <span style="color:var(--muted); font-weight:400;">({{ variables | length }})</span>
+  </div>
+  {% if variables %}
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Owner</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for v in variables %}
+      <tr>
+        <td><code>{{ v.id }}</code></td>
+        <td style="color:var(--muted); font-size:.8rem;">{{ v.owner }}</td>
+        <td>
+          <form method="post" action="{{ url_for('variable_get') }}"
+                style="display:inline;">
+            <!-- Strip "account:variable:" prefix for the API call -->
+            <input type="hidden" name="variable_id"
+                   value="{{ v.id.split(':')[-1] }}"/>
+            <button type="submit" class="btn btn-primary btn-sm">Get</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+    <p style="color:var(--muted); font-size:.875rem;">
+      No variables found. Load a policy first.
+    </p>
+  {% endif %}
+</div>
+
+{% endblock %}

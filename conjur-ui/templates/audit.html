@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}Audit Log — Conjur UI{% endblock %}
+{% block content %}
+
+<div class="page-title">Audit Log</div>
+
+{% if not audit_ready %}
+<div class="alert alert-warning">
+  MySQL is not connected yet — log in first so the app can fetch credentials
+  from Conjur and connect to the database. Events since connection will appear here.
+</div>
+{% endif %}
+
+<!-- Controls -->
+<div class="card">
+  <div class="card-title">Filter</div>
+  <form method="get" style="display:flex; gap:.75rem; align-items:flex-end; flex-wrap:wrap;">
+    <div>
+      <label>Last N events</label>
+      <select name="limit" onchange="this.form.submit()" style="width:120px;">
+        {% for n in [50, 100, 200, 500] %}
+        <option value="{{ n }}" {% if limit == n %}selected{% endif %}>{{ n }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </form>
+</div>
+
+<!-- Table -->
+<div class="card">
+  <div class="card-title">
+    Events
+    <span style="color:var(--muted); font-weight:400;">({{ events | length }})</span>
+  </div>
+
+  {% if events %}
+  <div style="overflow-x:auto;">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Timestamp (UTC)</th>
+          <th>User</th>
+          <th>Action</th>
+          <th>Resource</th>
+          <th>Result</th>
+          <th>Detail</th>
+          <th>IP</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in events %}
+        <tr>
+          <td style="color:var(--muted); font-size:.75rem;">{{ e.id }}</td>
+          <td style="white-space:nowrap; font-size:.78rem; color:var(--muted);">
+            {{ e.ts }}
+          </td>
+          <td><strong>{{ e.username }}</strong></td>
+          <td>
+            {% set action = e.action %}
+            {% if action in ['login'] %}
+              <span class="badge badge-green">{{ action }}</span>
+            {% elif action in ['logout'] %}
+              <span class="badge badge-blue">{{ action }}</span>
+            {% elif action in ['load_policy'] %}
+              <span class="badge badge-orange">{{ action }}</span>
+            {% elif action in ['set_variable'] %}
+              <span class="badge badge-purple">{{ action }}</span>
+            {% elif action in ['get_variable'] %}
+              <span class="badge" style="background:#1a1a2d;color:#90cdf4;border:1px solid #2b4080;">{{ action }}</span>
+            {% elif e.result == 'fail' or action == 'session_expired' %}
+              <span class="badge badge-red">{{ action }}</span>
+            {% else %}
+              <span class="badge" style="background:var(--border);color:var(--muted);">{{ action }}</span>
+            {% endif %}
+          </td>
+          <td style="font-size:.78rem;">
+            {% if e.resource %}
+              <code>{{ e.resource }}</code>
+            {% else %}—{% endif %}
+          </td>
+          <td>
+            {% if e.result == 'success' %}
+              <span class="badge badge-green">✓</span>
+            {% elif e.result == 'fail' %}
+              <span class="badge badge-red">✗</span>
+            {% else %}
+              <span style="color:var(--muted);">{{ e.result }}</span>
+            {% endif %}
+          </td>
+          <td style="font-size:.75rem; color:var(--muted); max-width:260px;
+                     overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
+              title="{{ e.detail }}">
+            {{ e.detail or '—' }}
+          </td>
+          <td style="font-size:.75rem; color:var(--muted);">{{ e.client_ip or '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <p style="color:var(--muted); font-size:.875rem;">
+      No events yet — actions you take in the UI will appear here.
+    </p>
+  {% endif %}
+</div>
+
+{% endblock %}
