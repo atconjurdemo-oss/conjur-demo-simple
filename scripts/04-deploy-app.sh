@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
-# 04-deploy-app.sh
-# Builds the Docker image (local or Cloud Build) and deploys to GKE.
+# 04-deploy-app.sh — Build and deploy the Incident Tracker webapp.
 #
 # Usage:
 #   export PROJECT_ID=<gcp-project>
-#   export REGION=europe-west1         # optional, default: europe-west1
+#   export REGION=europe-west1   # optional, default: europe-west1
 #   bash scripts/04-deploy-app.sh
 
 set -euo pipefail
@@ -15,7 +14,7 @@ REGISTRY="${REGION}-docker.pkg.dev/${PROJECT_ID}/conjur-demo"
 TAG="$(git rev-parse --short HEAD 2>/dev/null || date +%Y%m%d%H%M)"
 IMAGE="${REGISTRY}/webapp:${TAG}"
 
-echo "==> [1/4] Building and pushing image..."
+echo "==> [1/3] Building and pushing image (${TAG})..."
 gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
 gcloud artifacts repositories create conjur-demo \
   --repository-format=docker --location="${REGION}" 2>/dev/null || true
@@ -24,30 +23,27 @@ if command -v docker &>/dev/null; then
   docker build -t "${IMAGE}" app/
   docker push "${IMAGE}"
 else
-  echo "Docker not available — using Cloud Build..."
   gcloud builds submit app/ --tag "${IMAGE}" --project "${PROJECT_ID}"
 fi
 
-echo "==> [2/4] Applying manifests..."
+echo "==> [2/3] Applying Kubernetes manifests..."
 kubectl apply -f k8s/00-namespace.yaml
 kubectl apply -f k8s/webapp/serviceaccount.yaml
 kubectl apply -f k8s/webapp/configmap.yaml
+kubectl apply -f k8s/mysql/statefulset.yaml
 kubectl apply -f k8s/webapp/ingress.yaml
 
-echo "==> [3/4] Deploying MySQL and webapp..."
-kubectl apply -f k8s/mysql/statefulset.yaml
-
+# Flask secret key (generated once, stable across restarts)
 kubectl -n securetask get secret flask-secret &>/dev/null || \
   kubectl -n securetask create secret generic flask-secret \
     --from-literal=secret-key="$(openssl rand -hex 32)"
 
+echo "==> [3/3] Deploying webapp..."
 sed "s|IMAGE_PLACEHOLDER|${IMAGE}|g" k8s/webapp/deployment.yaml | kubectl apply -f -
-
-echo "==> [4/4] Waiting for rollout..."
 kubectl -n securetask rollout status deployment/webapp --timeout=5m
 
-echo ""
-echo "Done!"
 EXTERNAL_IP="$(kubectl -n ingress-nginx get svc ingress-nginx-controller \
   -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo '<pending>')"
-echo "  App URL: http://${EXTERNAL_IP}/app"
+echo ""
+echo "Done! Incident Tracker: http://${EXTERNAL_IP}/app"
+echo "Next: bash scripts/05-verify.sh"

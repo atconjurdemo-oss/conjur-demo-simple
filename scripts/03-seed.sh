@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-# 03-seed.sh
-# Loads Conjur policies and writes secrets using the REST API directly.
-# The Conjur CLI v9 has interactive auth issues with self-signed certs.
+# 03-seed.sh — Load Conjur policies and write secrets.
 #
 # Usage:
 #   export DB_APP_PASSWORD=MySecurePass123
@@ -9,115 +7,114 @@
 
 set -euo pipefail
 
+: "${DB_APP_PASSWORD:?Set DB_APP_PASSWORD}"
 ACCOUNT="myConjurAccount"
+PORT=8443
 
-# Port-forward to reach Conjur
-echo "==> Setting up port-forward to Conjur..."
-kubectl -n conjur port-forward svc/conjur-oss 8443:443 &
+# ── Port-forward ──────────────────────────────────────────────────────────────
+echo "==> Setting up port-forward..."
+kubectl -n conjur port-forward svc/conjur-oss ${PORT}:443 &
 PF_PID=$!
 sleep 3
 trap "kill ${PF_PID} 2>/dev/null" EXIT
 
 ADMIN_KEY="$(kubectl -n conjur get secret conjur-admin-api-key \
   -o jsonpath='{.data.key}' | base64 -d)"
-echo "Admin key length: ${#ADMIN_KEY}"
+echo "Admin key: ${#ADMIN_KEY} chars"
 
-# Get token (-k = skip TLS verification for self-signed cert)
-TOKEN="$(printf '%s' "${ADMIN_KEY}" | curl -sSf -k \
-  -X POST "https://localhost:8443/authn/${ACCOUNT}/admin/authenticate" \
-  -H 'Accept-Encoding: base64' --data-binary @- | tr -d '\n\r ')"
-echo "Token length: ${#TOKEN}"
-[ "${#TOKEN}" -lt 10 ] && { echo "ERROR: authentication failed"; exit 1; }
+# ── Helpers ───────────────────────────────────────────────────────────────────
+_token() {
+  printf '%s' "${ADMIN_KEY}" | curl -sSf -k \
+    -X POST "https://localhost:${PORT}/authn/${ACCOUNT}/admin/authenticate" \
+    -H 'Accept-Encoding: base64' --data-binary @- | tr -d '\n\r '
+}
 
-# Helpers
-policy_load() {
-  local branch="$1" file="$2"
-  local tok; tok="$(printf '%s' "${ADMIN_KEY}" | curl -sSf -k \
-    -X POST "https://localhost:8443/authn/${ACCOUNT}/admin/authenticate" \
-    -H 'Accept-Encoding: base64' --data-binary @- | tr -d '\n\r ')"
+_policy() {
+  local method="$1" branch="$2" file="$3"
+  local tok; tok="$(_token)"
   HTTP=$(curl -sk -o /tmp/pr.txt -w "%{http_code}" \
-    -X POST "https://localhost:8443/policies/${ACCOUNT}/policy/${branch}" \
+    -X "${method}" "https://localhost:${PORT}/policies/${ACCOUNT}/policy/${branch}" \
     -H "Authorization: Token token=\"${tok}\"" \
     -H "Content-Type: application/x-yaml" \
     --data-binary "@${file}")
-  echo "  POST ${branch}: HTTP ${HTTP}"
+  echo "  ${method} ${branch}: HTTP ${HTTP}"
 }
 
-set_var() {
+_set() {
   local id="$1" val="$2"
   local tok enc http
-  tok="$(printf '%s' "${ADMIN_KEY}" | curl -sSf -k \
-    -X POST "https://localhost:8443/authn/${ACCOUNT}/admin/authenticate" \
-    -H 'Accept-Encoding: base64' --data-binary @- | tr -d '\n\r ')"
+  tok="$(_token)"
   enc="$(python3 -c "import urllib.parse; print(urllib.parse.quote('${id}', safe=''))")"
   http="$(printf '%s' "${val}" | curl -sk -o /dev/null -w "%{http_code}" \
-    -X POST "https://localhost:8443/secrets/${ACCOUNT}/variable/${enc}" \
-    -H "Authorization: Token token=\"${tok}\"" \
-    --data-binary @-)"
+    -X POST "https://localhost:${PORT}/secrets/${ACCOUNT}/variable/${enc}" \
+    -H "Authorization: Token token=\"${tok}\"" --data-binary @-)"
   [ "${http}" = "201" ] && echo "  set: ${id}" || echo "  WARN: ${id} HTTP ${http}"
 }
 
-get_var() {
-  local id="$1"
-  local tok enc
-  tok="$(printf '%s' "${ADMIN_KEY}" | curl -sSf -k \
-    -X POST "https://localhost:8443/authn/${ACCOUNT}/admin/authenticate" \
-    -H 'Accept-Encoding: base64' --data-binary @- | tr -d '\n\r ')"
+_get() {
+  local id="$1" tok enc
+  tok="$(_token)"
   enc="$(python3 -c "import urllib.parse; print(urllib.parse.quote('${id}', safe=''))")"
-  curl -sf -k "https://localhost:8443/secrets/${ACCOUNT}/variable/${enc}" \
+  curl -sf -k "https://localhost:${PORT}/secrets/${ACCOUNT}/variable/${enc}" \
     -H "Authorization: Token token=\"${tok}\"" 2>/dev/null || echo ''
 }
 
-# Create policy branches
+# ── Load policies ─────────────────────────────────────────────────────────────
 echo ""
 echo "==> Loading policies..."
 python3 -c "print('- !policy\n  id: conjur')"    > /tmp/br-conjur.yml
 python3 -c "print('- !policy\n  id: authn-jwt')" > /tmp/br-authn.yml
-policy_load root /tmp/br-conjur.yml
-policy_load conjur /tmp/br-authn.yml
-policy_load root conjur-policy/root.yml
-# Use PUT for myapp to always replace permits cleanly
-local tok; tok="$(printf '%s' "${ADMIN_KEY}" | curl -sSf -k \
-  -X POST "https://localhost:8443/authn/${ACCOUNT}/admin/authenticate" \
-  -H 'Accept-Encoding: base64' --data-binary @- | tr -d '\n\r ')"
-HTTP=$(curl -sk -o /tmp/pr.txt -w "%{http_code}" \
-  -X PUT "https://localhost:8443/policies/${ACCOUNT}/policy/myapp" \
-  -H "Authorization: Token token=\"${tok}\"" \
-  -H "Content-Type: application/x-yaml" \
-  --data-binary "@conjur-policy/database.yml")
-echo "  PUT myapp: HTTP ${HTTP}"
-policy_load conjur/authn-jwt conjur-policy/authn-jwt.yml
+_policy POST root              /tmp/br-conjur.yml
+_policy POST conjur            /tmp/br-authn.yml
+_policy POST root              conjur-policy/root.yml
+_policy PUT  myapp             conjur-policy/database.yml
+_policy POST conjur/authn-jwt  conjur-policy/authn-jwt.yml
 
-# Configure JWT
+# ── Configure JWT authenticator ───────────────────────────────────────────────
 echo ""
 echo "==> Configuring JWT authenticator..."
 OIDC="$(kubectl get --raw /.well-known/openid-configuration)"
 ISSUER="$(echo "${OIDC}" | python3 -c "import sys,json; print(json.load(sys.stdin)['issuer'])")"
-set_var "conjur/authn-jwt/k8s-cluster/jwks-uri" "${ISSUER}/jwks"
-set_var "conjur/authn-jwt/k8s-cluster/issuer"   "${ISSUER}"
-set_var "conjur/authn-jwt/k8s-cluster/audience"  "${ISSUER}"
+_set "conjur/authn-jwt/k8s-cluster/jwks-uri" "${ISSUER}/jwks"
+_set "conjur/authn-jwt/k8s-cluster/issuer"   "${ISSUER}"
+_set "conjur/authn-jwt/k8s-cluster/audience" "${ISSUER}"
 
-# Write secrets
+# ── Write database secrets ────────────────────────────────────────────────────
 echo ""
 echo "==> Writing database secrets..."
-EXISTING_ROOT="$(get_var myapp/database/root-password)"
+EXISTING_ROOT="$(_get myapp/database/root-password)"
 DB_ROOT="${EXISTING_ROOT:-$(openssl rand -base64 32 | tr -dc 'A-Za-z0-9' | head -c 24)}"
-DB_APP="${DB_APP_PASSWORD:-$(openssl rand -base64 32 | tr -dc 'A-Za-z0-9' | head -c 24)}"
 
-set_var "myapp/database/host"          "mysql.securetask.svc.cluster.local"
-set_var "myapp/database/port"          "3306"
-set_var "myapp/database/user"          "appuser"
-set_var "myapp/database/password"      "${DB_APP}"
-set_var "myapp/database/name"          "securetask"
-set_var "myapp/database/root-password" "${DB_ROOT}"
+_set "myapp/database/host"          "mysql.securetask.svc.cluster.local"
+_set "myapp/database/port"          "3306"
+_set "myapp/database/user"          "appuser"
+_set "myapp/database/password"      "${DB_APP_PASSWORD}"
+_set "myapp/database/name"          "securetask"
+_set "myapp/database/root-password" "${DB_ROOT}"
 
-# Verify
+# ── Refresh conjur-ssl-cert ───────────────────────────────────────────────────
+CERT="$(kubectl -n conjur exec deploy/conjur-oss -c conjur-oss-nginx -- \
+  cat /opt/conjur/etc/ssl/cert/tls.crt 2>/dev/null)"
+if [ -n "${CERT}" ]; then
+  kubectl -n securetask delete secret conjur-ssl-cert --ignore-not-found
+  kubectl -n securetask create secret generic conjur-ssl-cert \
+    --from-literal=certificate="${CERT}"
+fi
+
+# ── Verify ────────────────────────────────────────────────────────────────────
 echo ""
 echo "==> Verifying..."
-for var in myapp/database/host myapp/database/user conjur/authn-jwt/k8s-cluster/issuer; do
-  val="$(get_var "${var}")"
-  [ -n "${val}" ] && echo "  [OK] ${var}" || echo "  [FAIL] ${var}"
+ALL_OK=true
+for var in myapp/database/host myapp/database/user \
+           conjur/authn-jwt/k8s-cluster/issuer; do
+  val="$(_get "${var}")"
+  if [ -n "${val}" ]; then
+    echo "  [OK] ${var}"
+  else
+    echo "  [FAIL] ${var}"
+    ALL_OK=false
+  fi
 done
 
-echo ""
-echo "Done! Next: bash scripts/04-deploy-app.sh"
+${ALL_OK} && echo "" && echo "Done! Next: bash scripts/04-deploy-app.sh" || \
+  { echo "Some secrets missing — check Conjur logs"; exit 1; }
