@@ -99,7 +99,7 @@ data:
   CONJUR_INTERNAL_VERIFY: "false"
   CONJUR_AUTHN_JWT_SERVICE: "k8s-cluster"
   CONJUR_HOST_ID: "host/myapp/conjur-ui"
-  APPLICATION_ROOT: "/ui"
+  APPLICATION_ROOT: "/"
 EOF
 
 # Secret
@@ -157,35 +157,29 @@ spec:
   ports:
     - port: 80
       targetPort: 8080
-  type: ClusterIP
+  type: LoadBalancer
 EOF
 
-echo "==> [4/4] Applying ingress..."
-kubectl apply -f - <<EOF
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: conjur-ui
-  namespace: conjur
-  annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /\$2
-    nginx.ingress.kubernetes.io/use-regex: "true"
-spec:
-  ingressClassName: nginx
-  rules:
-    - http:
-        paths:
-          - path: /ui(/|$)(.*)
-            pathType: ImplementationSpecific
-            backend:
-              service:
-                name: conjur-ui
-                port:
-                  number: 80
-EOF
+# Remove old ingress if exists
+kubectl -n conjur delete ingress conjur-ui --ignore-not-found
 
+echo "==> [4/4] Waiting for external IP..."
 kubectl -n conjur rollout status deployment/conjur-ui --timeout=3m
 
+for i in $(seq 1 20); do
+  UI_IP="$(kubectl -n conjur get svc conjur-ui \
+    -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)"
+  [ -n "${UI_IP}" ] && break
+  sleep 10
+done
+
 echo ""
-echo "Done! Conjur UI: http://${EXTERNAL_IP}/ui"
-echo "Login with your Conjur admin credentials."
+echo "Done!"
+echo "  Conjur UI:     http://${UI_IP}"
+echo "  Incident App:  http://${EXTERNAL_IP}/app"
+echo ""
+echo "Login to Conjur UI with:"
+echo "  Account:  myConjurAccount"
+echo "  Username: admin"
+echo "  Password: $(kubectl -n conjur get secret conjur-admin-api-key \
+    -o jsonpath='{.data.key}' | base64 -d)"
