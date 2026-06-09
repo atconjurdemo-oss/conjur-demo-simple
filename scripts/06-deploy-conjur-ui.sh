@@ -97,6 +97,7 @@ data:
   CONJUR_ACCOUNT: "myConjurAccount"
   CONJUR_INTERNAL_URL: "https://conjur-oss.conjur.svc.cluster.local"
   CONJUR_INTERNAL_VERIFY: "false"
+  CONJUR_SSL_VERIFY: "false"
   CONJUR_AUTHN_JWT_SERVICE: "k8s-cluster"
   CONJUR_HOST_ID: "host/myapp/conjur-ui"
   APPLICATION_ROOT: "/"
