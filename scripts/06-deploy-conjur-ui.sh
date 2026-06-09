@@ -93,7 +93,7 @@ metadata:
   name: conjur-ui-config
   namespace: conjur
 data:
-  CONJUR_APPLIANCE_URL: "http://${EXTERNAL_IP}"
+  CONJUR_APPLIANCE_URL: "https://conjur-oss.conjur.svc.cluster.local"
   CONJUR_ACCOUNT: "myConjurAccount"
   CONJUR_INTERNAL_URL: "https://conjur-oss.conjur.svc.cluster.local"
   CONJUR_INTERNAL_VERIFY: "false"
