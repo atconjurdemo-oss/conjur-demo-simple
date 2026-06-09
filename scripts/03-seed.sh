@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # 03-seed.sh
-# Loads Conjur policies and writes secrets.
+# Loads Conjur policies and writes secrets using the REST API directly.
+# The Conjur CLI v9 has interactive auth issues with self-signed certs.
 #
 # Usage:
 #   export DB_APP_PASSWORD=MySecurePass123
@@ -9,9 +10,8 @@
 set -euo pipefail
 
 ACCOUNT="myConjurAccount"
-CONJUR_URL="https://conjur-oss.conjur.svc.cluster.local"
 
-# Auth via port-forward (Conjur is cluster-internal)
+# Port-forward to reach Conjur
 echo "==> Setting up port-forward to Conjur..."
 kubectl -n conjur port-forward svc/conjur-oss 8443:443 &
 PF_PID=$!
@@ -20,54 +20,93 @@ trap "kill ${PF_PID} 2>/dev/null" EXIT
 
 ADMIN_KEY="$(kubectl -n conjur get secret conjur-admin-api-key \
   -o jsonpath='{.data.key}' | base64 -d)"
+echo "Admin key length: ${#ADMIN_KEY}"
 
-# Extract cert for CLI
-kubectl -n conjur exec deploy/conjur-oss -c conjur-oss-nginx -- \
-  cat /opt/conjur/etc/ssl/cert/tls.crt > /tmp/conjur-ca.pem 2>/dev/null || \
-  kubectl -n securetask get secret conjur-ssl-cert \
-    -o jsonpath='{.data.certificate}' | base64 -d > /tmp/conjur-ca.pem
+# Get token (-k = skip TLS verification for self-signed cert)
+TOKEN="$(printf '%s' "${ADMIN_KEY}" | curl -sSf -k \
+  -X POST "https://localhost:8443/authn/${ACCOUNT}/admin/authenticate" \
+  -H 'Accept-Encoding: base64' --data-binary @- | tr -d '\n\r ')"
+echo "Token length: ${#TOKEN}"
+[ "${#TOKEN}" -lt 10 ] && { echo "ERROR: authentication failed"; exit 1; }
 
-printf '%s\n' '---' "account: ${ACCOUNT}" \
-  "appliance_url: https://localhost:8443" \
-  'cert_file: /tmp/conjur-ca.pem' \
-  'ignore_untrusted_cert: true' > ~/.conjurrc
+# Helpers
+policy_load() {
+  local branch="$1" file="$2"
+  local tok; tok="$(printf '%s' "${ADMIN_KEY}" | curl -sSf -k \
+    -X POST "https://localhost:8443/authn/${ACCOUNT}/admin/authenticate" \
+    -H 'Accept-Encoding: base64' --data-binary @- | tr -d '\n\r ')"
+  HTTP=$(curl -sk -o /tmp/pr.txt -w "%{http_code}" \
+    -X POST "https://localhost:8443/policies/${ACCOUNT}/policy/${branch}" \
+    -H "Authorization: Token token=\"${tok}\"" \
+    -H "Content-Type: application/x-yaml" \
+    --data-binary "@${file}")
+  echo "  POST ${branch}: HTTP ${HTTP}"
+}
 
-conjur login -i admin -p "${ADMIN_KEY}"
-conjur whoami && echo "Authenticated"
+set_var() {
+  local id="$1" val="$2"
+  local tok enc http
+  tok="$(printf '%s' "${ADMIN_KEY}" | curl -sSf -k \
+    -X POST "https://localhost:8443/authn/${ACCOUNT}/admin/authenticate" \
+    -H 'Accept-Encoding: base64' --data-binary @- | tr -d '\n\r ')"
+  enc="$(python3 -c "import urllib.parse; print(urllib.parse.quote('${id}', safe=''))")"
+  http="$(printf '%s' "${val}" | curl -sk -o /dev/null -w "%{http_code}" \
+    -X POST "https://localhost:8443/secrets/${ACCOUNT}/variable/${enc}" \
+    -H "Authorization: Token token=\"${tok}\"" \
+    --data-binary @-)"
+  [ "${http}" = "201" ] && echo "  set: ${id}" || echo "  WARN: ${id} HTTP ${http}"
+}
 
+get_var() {
+  local id="$1"
+  local tok enc
+  tok="$(printf '%s' "${ADMIN_KEY}" | curl -sSf -k \
+    -X POST "https://localhost:8443/authn/${ACCOUNT}/admin/authenticate" \
+    -H 'Accept-Encoding: base64' --data-binary @- | tr -d '\n\r ')"
+  enc="$(python3 -c "import urllib.parse; print(urllib.parse.quote('${id}', safe=''))")"
+  curl -sf -k "https://localhost:8443/secrets/${ACCOUNT}/variable/${enc}" \
+    -H "Authorization: Token token=\"${tok}\"" 2>/dev/null || echo ''
+}
+
+# Create policy branches
 echo ""
 echo "==> Loading policies..."
-python3 -c "print('- !policy\n  id: conjur')"    | conjur policy load -b root -f - || true
-python3 -c "print('- !policy\n  id: authn-jwt')" | conjur policy load -b conjur -f - || true
-conjur policy load -b root           -f conjur-policy/root.yml
-conjur policy load -b myapp          -f conjur-policy/database.yml
-conjur policy load -b conjur/authn-jwt -f conjur-policy/authn-jwt.yml
+python3 -c "print('- !policy\n  id: conjur')"    > /tmp/br-conjur.yml
+python3 -c "print('- !policy\n  id: authn-jwt')" > /tmp/br-authn.yml
+policy_load root /tmp/br-conjur.yml
+policy_load conjur /tmp/br-authn.yml
+policy_load root conjur-policy/root.yml
+policy_load myapp conjur-policy/database.yml
+policy_load conjur/authn-jwt conjur-policy/authn-jwt.yml
 
+# Configure JWT
 echo ""
 echo "==> Configuring JWT authenticator..."
 OIDC="$(kubectl get --raw /.well-known/openid-configuration)"
 ISSUER="$(echo "${OIDC}" | python3 -c "import sys,json; print(json.load(sys.stdin)['issuer'])")"
-conjur variable set -i conjur/authn-jwt/k8s-cluster/jwks-uri -v "${ISSUER}/jwks"
-conjur variable set -i conjur/authn-jwt/k8s-cluster/issuer   -v "${ISSUER}"
-conjur variable set -i conjur/authn-jwt/k8s-cluster/audience -v "${ISSUER}"
+set_var "conjur/authn-jwt/k8s-cluster/jwks-uri" "${ISSUER}/jwks"
+set_var "conjur/authn-jwt/k8s-cluster/issuer"   "${ISSUER}"
+set_var "conjur/authn-jwt/k8s-cluster/audience"  "${ISSUER}"
 
+# Write secrets
 echo ""
 echo "==> Writing database secrets..."
-EXISTING_ROOT="$(conjur variable get -i myapp/database/root-password 2>/dev/null || echo '')"
+EXISTING_ROOT="$(get_var myapp/database/root-password)"
 DB_ROOT="${EXISTING_ROOT:-$(openssl rand -base64 32 | tr -dc 'A-Za-z0-9' | head -c 24)}"
 DB_APP="${DB_APP_PASSWORD:-$(openssl rand -base64 32 | tr -dc 'A-Za-z0-9' | head -c 24)}"
 
-conjur variable set -i myapp/database/host          -v "mysql.securetask.svc.cluster.local"
-conjur variable set -i myapp/database/port          -v "3306"
-conjur variable set -i myapp/database/user          -v "appuser"
-conjur variable set -i myapp/database/password      -v "${DB_APP}"
-conjur variable set -i myapp/database/name          -v "securetask"
-conjur variable set -i myapp/database/root-password -v "${DB_ROOT}"
+set_var "myapp/database/host"          "mysql.securetask.svc.cluster.local"
+set_var "myapp/database/port"          "3306"
+set_var "myapp/database/user"          "appuser"
+set_var "myapp/database/password"      "${DB_APP}"
+set_var "myapp/database/name"          "securetask"
+set_var "myapp/database/root-password" "${DB_ROOT}"
 
+# Verify
 echo ""
 echo "==> Verifying..."
 for var in myapp/database/host myapp/database/user conjur/authn-jwt/k8s-cluster/issuer; do
-  val="$(conjur variable get -i "${var}" 2>/dev/null || echo '')"
+  val="$(get_var "${var}")"
   [ -n "${val}" ] && echo "  [OK] ${var}" || echo "  [FAIL] ${var}"
 done
 
