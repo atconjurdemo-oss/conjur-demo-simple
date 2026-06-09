@@ -29,7 +29,8 @@ kubectl -n conjur exec deploy/conjur-oss -c conjur-oss-nginx -- \
 
 printf '%s\n' '---' "account: ${ACCOUNT}" \
   "appliance_url: https://localhost:8443" \
-  'cert_file: /tmp/conjur-ca.pem' > ~/.conjurrc
+  'cert_file: /tmp/conjur-ca.pem' \
+  'ignore_untrusted_cert: true' > ~/.conjurrc
 
 conjur login -i admin -p "${ADMIN_KEY}"
 conjur whoami && echo "Authenticated"
