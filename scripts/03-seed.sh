@@ -76,7 +76,16 @@ python3 -c "print('- !policy\n  id: authn-jwt')" > /tmp/br-authn.yml
 policy_load root /tmp/br-conjur.yml
 policy_load conjur /tmp/br-authn.yml
 policy_load root conjur-policy/root.yml
-policy_load myapp conjur-policy/database.yml
+# Use PUT for myapp to always replace permits cleanly
+local tok; tok="$(printf '%s' "${ADMIN_KEY}" | curl -sSf -k \
+  -X POST "https://localhost:8443/authn/${ACCOUNT}/admin/authenticate" \
+  -H 'Accept-Encoding: base64' --data-binary @- | tr -d '\n\r ')"
+HTTP=$(curl -sk -o /tmp/pr.txt -w "%{http_code}" \
+  -X PUT "https://localhost:8443/policies/${ACCOUNT}/policy/myapp" \
+  -H "Authorization: Token token=\"${tok}\"" \
+  -H "Content-Type: application/x-yaml" \
+  --data-binary "@conjur-policy/database.yml")
+echo "  PUT myapp: HTTP ${HTTP}"
 policy_load conjur/authn-jwt conjur-policy/authn-jwt.yml
 
 # Configure JWT
