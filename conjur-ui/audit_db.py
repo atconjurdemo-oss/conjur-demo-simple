@@ -61,8 +61,10 @@ def _jwt_authenticate() -> str:
                            "Is automountServiceAccountToken enabled?")
 
     jwt = SA_TOKEN_PATH.read_text().strip()
+    # Include the host login in the URL for URL-based identity
+    host_encoded = requests.utils.quote(CONJUR_HOST_ID, safe="")
     url = (f"{CONJUR_INTERNAL_URL}/authn-jwt/{CONJUR_AUTHN_JWT_SERVICE}"
-           f"/{CONJUR_ACCOUNT}/authenticate")
+           f"/{CONJUR_ACCOUNT}/{host_encoded}/authenticate")
 
     log.debug("JWT authn → %s", url)
     resp = requests.post(
