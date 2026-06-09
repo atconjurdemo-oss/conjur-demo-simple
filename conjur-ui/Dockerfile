@@ -10,4 +10,4 @@ COPY --from=builder /install /usr/local
 COPY --chown=appuser:appuser . .
 USER appuser
 EXPOSE 8080
-CMD ["gunicorn","--workers","2","--bind","0.0.0.0:8080","--access-logfile","-","--error-logfile","-","--log-level","debug","app:app"]
+CMD ["gunicorn","--workers","2","--bind","0.0.0.0:8080","--access-logfile","-","--error-logfile","-","--log-level","debug","--env","SCRIPT_NAME=/ui","app:app"]
