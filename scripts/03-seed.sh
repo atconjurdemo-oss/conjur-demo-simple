@@ -1,32 +1,39 @@
 #!/usr/bin/env bash
 # 03-seed.sh
 # Loads Conjur policies and writes secrets.
-# Requires: conjur CLI installed and DOMAIN set.
 #
 # Usage:
-#   export DOMAIN=myapp.duckdns.org
-#   export DB_APP_PASSWORD=<your-password>   # or leave blank to generate
+#   export DB_APP_PASSWORD=MySecurePass123
 #   bash scripts/03-seed.sh
 
 set -euo pipefail
 
-: "${DOMAIN:?Set DOMAIN}"
 ACCOUNT="myConjurAccount"
-CONJUR_URL="https://${DOMAIN}"
+CONJUR_URL="https://conjur-oss.conjur.svc.cluster.local"
 
-# Auth
+# Auth via port-forward (Conjur is cluster-internal)
+echo "==> Setting up port-forward to Conjur..."
+kubectl -n conjur port-forward svc/conjur-oss 8443:443 &
+PF_PID=$!
+sleep 3
+trap "kill ${PF_PID} 2>/dev/null" EXIT
+
 ADMIN_KEY="$(kubectl -n conjur get secret conjur-admin-api-key \
   -o jsonpath='{.data.key}' | base64 -d)"
-kubectl -n conjur get secret conjur-tls \
-  -o jsonpath='{.data.tls\.crt}' | base64 -d > /tmp/conjur-ca.pem
+
+# Extract cert for CLI
+kubectl -n conjur exec deploy/conjur-oss -c conjur-oss-nginx -- \
+  cat /opt/conjur/etc/ssl/cert/tls.crt > /tmp/conjur-ca.pem 2>/dev/null || \
+  kubectl -n securetask get secret conjur-ssl-cert \
+    -o jsonpath='{.data.certificate}' | base64 -d > /tmp/conjur-ca.pem
 
 printf '%s\n' '---' "account: ${ACCOUNT}" \
-  "appliance_url: ${CONJUR_URL}" 'cert_file: /tmp/conjur-ca.pem' > ~/.conjurrc
+  "appliance_url: https://localhost:8443" \
+  'cert_file: /tmp/conjur-ca.pem' > ~/.conjurrc
 
 conjur login -i admin -p "${ADMIN_KEY}"
-conjur whoami && echo "Authenticated to Conjur"
+conjur whoami && echo "Authenticated"
 
-# Load policies
 echo ""
 echo "==> Loading policies..."
 python3 -c "print('- !policy\n  id: conjur')"    | conjur policy load -b root -f - || true
@@ -35,7 +42,6 @@ conjur policy load -b root           -f conjur-policy/root.yml
 conjur policy load -b myapp          -f conjur-policy/database.yml
 conjur policy load -b conjur/authn-jwt -f conjur-policy/authn-jwt.yml
 
-# Configure JWT authenticator
 echo ""
 echo "==> Configuring JWT authenticator..."
 OIDC="$(kubectl get --raw /.well-known/openid-configuration)"
@@ -44,7 +50,6 @@ conjur variable set -i conjur/authn-jwt/k8s-cluster/jwks-uri -v "${ISSUER}/jwks"
 conjur variable set -i conjur/authn-jwt/k8s-cluster/issuer   -v "${ISSUER}"
 conjur variable set -i conjur/authn-jwt/k8s-cluster/audience -v "${ISSUER}"
 
-# Set database secrets
 echo ""
 echo "==> Writing database secrets..."
 EXISTING_ROOT="$(conjur variable get -i myapp/database/root-password 2>/dev/null || echo '')"
@@ -57,13 +62,6 @@ conjur variable set -i myapp/database/user          -v "appuser"
 conjur variable set -i myapp/database/password      -v "${DB_APP}"
 conjur variable set -i myapp/database/name          -v "securetask"
 conjur variable set -i myapp/database/root-password -v "${DB_ROOT}"
-
-# Store TLS cert for the sidecar
-kubectl create namespace securetask --dry-run=client -o yaml | kubectl apply -f -
-CERT="$(kubectl -n conjur get secret conjur-tls -o jsonpath='{.data.tls\.crt}' | base64 -d)"
-kubectl -n securetask delete secret conjur-ssl-cert --ignore-not-found
-kubectl -n securetask create secret generic conjur-ssl-cert \
-  --from-literal=certificate="${CERT}"
 
 echo ""
 echo "==> Verifying..."

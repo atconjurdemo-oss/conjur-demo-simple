@@ -1,4 +1,6 @@
 ---
+# Access via: kubectl -n securetask port-forward svc/webapp 8080:80
+# Then open:  http://localhost:8080/app
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -7,16 +9,10 @@ metadata:
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /$2
     nginx.ingress.kubernetes.io/use-regex: "true"
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
-    cert-manager.io/cluster-issuer: letsencrypt-prod
 spec:
   ingressClassName: nginx
-  tls:
-    - hosts: ["PLACEHOLDER_DOMAIN"]
-      secretName: webapp-tls
   rules:
-    - host: PLACEHOLDER_DOMAIN
-      http:
+    - http:
         paths:
           - path: /app(/|$)(.*)
             pathType: ImplementationSpecific
