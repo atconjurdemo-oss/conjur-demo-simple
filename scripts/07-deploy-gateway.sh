@@ -18,11 +18,11 @@ kubectl -n securetask create configmap presentation-html \
   --dry-run=client -o yaml | kubectl apply -f -
 
 echo "==> [2/3] Applying gateway manifests..."
-# Remove old individual ingresses before creating the unified one
-kubectl -n securetask delete ingress webapp     --ignore-not-found
-kubectl -n conjur    delete ingress conjur-ui   --ignore-not-found
+# Remove old individual ingresses before creating the unified ones
+kubectl -n securetask delete ingress webapp       --ignore-not-found
+kubectl -n conjur    delete ingress conjur-ui     --ignore-not-found
+kubectl -n monitoring delete ingress grafana      --ignore-not-found
 kubectl apply -f k8s/gateway/presentation.yaml
-kubectl apply -f k8s/gateway/cross-namespace-services.yaml
 kubectl apply -f k8s/gateway/ingress.yaml
 
 echo "==> [3/3] Waiting for presentation rollout..."

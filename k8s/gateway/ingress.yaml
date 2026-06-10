@@ -3,9 +3,9 @@
 #
 # Routes:
 #   /app          → webapp (Incident Tracker)       [securetask ns]
-#   /ui           → conjur-ui (Admin Dashboard)      [conjur ns via proxy]
+#   /ui           → conjur-ui (Admin Dashboard)      [conjur ns]
 #   /presentation → presentation (static slides)     [securetask ns]
-#   /monitoring   → grafana (metrics dashboard)      [monitoring ns via proxy]
+#   /monitoring   → grafana (metrics dashboard)      [monitoring ns]
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -28,14 +28,6 @@ spec:
                 port:
                   number: 80
 
-          - path: /ui(/|$)(.*)
-            pathType: ImplementationSpecific
-            backend:
-              service:
-                name: conjur-ui-proxy
-                port:
-                  number: 80
-
           - path: /presentation(/|$)(.*)
             pathType: ImplementationSpecific
             backend:
@@ -44,10 +36,52 @@ spec:
                 port:
                   number: 80
 
+---
+# Separate Ingress for conjur-ui (in conjur namespace)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: gateway-ui
+  namespace: conjur
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: nginx
+  rules:
+    - http:
+        paths:
+          - path: /ui(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: conjur-ui
+                port:
+                  number: 80
+
+---
+# Separate Ingress for Grafana (in monitoring namespace)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: gateway-monitoring
+  namespace: monitoring
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/proxy-redirect-from: "http://localhost/"
+    nginx.ingress.kubernetes.io/proxy-redirect-to: "/monitoring/"
+spec:
+  ingressClassName: nginx
+  rules:
+    - http:
+        paths:
           - path: /monitoring(/|$)(.*)
             pathType: ImplementationSpecific
             backend:
               service:
-                name: grafana-proxy
+                name: kube-prometheus-stack-grafana
                 port:
                   number: 80
