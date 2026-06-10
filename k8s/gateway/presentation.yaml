@@ -103,6 +103,8 @@ data:
     server {
         listen 8080;
         root /usr/share/nginx/html;
+        port_in_redirect off;
+        absolute_redirect off;
 
         location = / {
             try_files /index.html =404;
