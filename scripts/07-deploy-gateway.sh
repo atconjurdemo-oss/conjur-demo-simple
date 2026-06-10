@@ -2,10 +2,10 @@
 # 07-deploy-gateway.sh — Deploy the unified gateway (single IP for all services).
 #
 # Routes:
-#   /app          → Incident Tracker
-#   /ui           → Conjur Admin UI
-#   /presentation → Architecture slides
-#   /monitoring   → Grafana (optional, deploy monitoring first)
+#   /app          → Incident Tracker    (always)
+#   /presentation → Architecture slides (always)
+#   /ui           → Conjur Admin UI     (requires 06-deploy-conjur-ui.sh)
+#   /monitoring   → Grafana             (requires monitoring stack)
 #
 # Usage:
 #   bash scripts/07-deploy-gateway.sh
@@ -17,15 +17,28 @@ kubectl -n securetask create configmap presentation-html \
   --from-file=index.html=presentation/index.html \
   --dry-run=client -o yaml | kubectl apply -f -
 
-echo "==> [2/3] Applying gateway manifests..."
-# Remove old individual ingresses before creating the unified ones
-kubectl -n securetask delete ingress webapp       --ignore-not-found
-kubectl -n conjur    delete ingress conjur-ui     --ignore-not-found
-kubectl -n monitoring delete ingress grafana      --ignore-not-found
-kubectl apply -f k8s/gateway/presentation.yaml
-kubectl apply -f k8s/gateway/ingress.yaml
+echo "==> [2/3] Removing old individual ingresses..."
+kubectl -n securetask delete ingress webapp   --ignore-not-found
+kubectl -n conjur    delete ingress conjur-ui --ignore-not-found
 
-echo "==> [3/3] Waiting for presentation rollout..."
+echo "==> [3/3] Applying gateway ingresses..."
+kubectl apply -f k8s/gateway/presentation.yaml
+kubectl apply -f k8s/gateway/ingress-securetask.yaml
+
+if kubectl get namespace conjur &>/dev/null; then
+  kubectl apply -f k8s/gateway/ingress-conjur.yaml
+  echo "  /ui    → conjur-ui applied"
+else
+  echo "  /ui    → skipped (conjur namespace not found)"
+fi
+
+if kubectl get namespace monitoring &>/dev/null; then
+  kubectl apply -f k8s/gateway/ingress-monitoring.yaml
+  echo "  /monitoring → grafana applied"
+else
+  echo "  /monitoring → skipped (run monitoring deploy first)"
+fi
+
 kubectl -n securetask rollout status deployment/presentation --timeout=2m
 
 EXTERNAL_IP="$(kubectl -n ingress-nginx get svc ingress-nginx-controller \
@@ -33,12 +46,9 @@ EXTERNAL_IP="$(kubectl -n ingress-nginx get svc ingress-nginx-controller \
 
 echo ""
 echo "=============================="
-echo " Single gateway IP: ${EXTERNAL_IP}"
+echo " Gateway IP: ${EXTERNAL_IP}"
 echo "=============================="
-echo "  /app          → http://${EXTERNAL_IP}/app"
-echo "  /ui           → http://${EXTERNAL_IP}/ui"
-echo "  /presentation → http://${EXTERNAL_IP}/presentation"
-echo "  /monitoring   → http://${EXTERNAL_IP}/monitoring"
-echo ""
-echo "Note: /monitoring requires Deploy Monitoring workflow to run first."
-echo "Note: /ui requires 06-deploy-conjur-ui.sh to run first."
+echo "  http://${EXTERNAL_IP}/app"
+echo "  http://${EXTERNAL_IP}/presentation"
+echo "  http://${EXTERNAL_IP}/ui"
+echo "  http://${EXTERNAL_IP}/monitoring"

@@ -166,10 +166,10 @@ jobs:
           kubectl -n securetask create configmap presentation-html \
             --from-file=index.html=presentation/index.html \
             --dry-run=client -o yaml | kubectl apply -f -
-          kubectl apply -f k8s/gateway/presentation.yaml
-          kubectl apply -f k8s/gateway/cross-namespace-services.yaml
-          kubectl apply -f k8s/gateway/ingress.yaml
           kubectl -n securetask delete ingress webapp --ignore-not-found
+          kubectl apply -f k8s/gateway/presentation.yaml
+          kubectl apply -f k8s/gateway/ingress-securetask.yaml
+          kubectl apply -f k8s/gateway/ingress-conjur.yaml
           kubectl -n securetask rollout status deployment/presentation --timeout=2m
 
       - name: Smoke test
