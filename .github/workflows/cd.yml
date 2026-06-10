@@ -46,6 +46,8 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: docker/setup-buildx-action@v3
+        with:
+          driver: docker
 
       # ── Webapp ───────────────────────────────────────────────────────────────
       - name: Build webapp
@@ -55,8 +57,6 @@ jobs:
           push: false
           tags: ${{ env.WEBAPP_IMAGE }}:latest
           load: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
 
       - name: Scan webapp (Trivy)
         uses: aquasecurity/trivy-action@master
@@ -76,7 +76,6 @@ jobs:
           tags: |
             ${{ env.WEBAPP_IMAGE }}:latest
             ${{ env.WEBAPP_IMAGE }}:${{ steps.sha.outputs.sha }}
-          cache-from: type=gha
 
       # ── Conjur UI ────────────────────────────────────────────────────────────
       - name: Build conjur-ui
@@ -86,7 +85,6 @@ jobs:
           push: false
           tags: ${{ env.CONJURUI_IMAGE }}:latest
           load: true
-          cache-from: type=gha
 
       - name: Scan conjur-ui (Trivy)
         uses: aquasecurity/trivy-action@master
@@ -106,7 +104,6 @@ jobs:
           tags: |
             ${{ env.CONJURUI_IMAGE }}:latest
             ${{ env.CONJURUI_IMAGE }}:${{ steps.sha.outputs.sha }}
-          cache-from: type=gha
 
   # ── Deploy ───────────────────────────────────────────────────────────────────
   deploy:
