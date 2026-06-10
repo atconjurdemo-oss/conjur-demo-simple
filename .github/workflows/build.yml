@@ -42,8 +42,8 @@ jobs:
           context: app
           push: true
           tags: |
-            ${{ env.REGISTRY }}/webapp:latest
-            ${{ env.REGISTRY }}/webapp:${{ github.sha }}
+            ${{ env.REGISTRY }}/conjur-demo-simple-webapp:latest
+            ${{ env.REGISTRY }}/conjur-demo-simple-webapp:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -68,7 +68,7 @@ jobs:
           context: conjur-ui
           push: true
           tags: |
-            ${{ env.REGISTRY }}/conjur-ui:latest
-            ${{ env.REGISTRY }}/conjur-ui:${{ github.sha }}
+            ${{ env.REGISTRY }}/conjur-demo-simple-conjur-ui:latest
+            ${{ env.REGISTRY }}/conjur-demo-simple-conjur-ui:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
