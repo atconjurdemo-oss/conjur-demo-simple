@@ -2,10 +2,9 @@
 # 07-deploy-gateway.sh — Deploy the unified gateway (single IP for all services).
 #
 # Routes:
-#   /app          → Incident Tracker    (always)
-#   /presentation → Architecture slides (always)
-#   /ui           → Conjur Admin UI     (requires 06-deploy-conjur-ui.sh)
-#   /monitoring   → Grafana             (requires monitoring stack)
+#   /             → Conjur UI (login page — starting point)
+#   /app          → Incident Tracker
+#   /presentation → Architecture slides
 #
 # Usage:
 #   bash scripts/07-deploy-gateway.sh
@@ -24,20 +23,7 @@ kubectl -n conjur    delete ingress conjur-ui --ignore-not-found
 echo "==> [3/3] Applying gateway ingresses..."
 kubectl apply -f k8s/gateway/presentation.yaml
 kubectl apply -f k8s/gateway/ingress-securetask.yaml
-
-if kubectl get namespace conjur &>/dev/null; then
-  kubectl apply -f k8s/gateway/ingress-conjur.yaml
-  echo "  /ui    → conjur-ui applied"
-else
-  echo "  /ui    → skipped (conjur namespace not found)"
-fi
-
-if kubectl get namespace monitoring &>/dev/null; then
-  kubectl apply -f k8s/gateway/ingress-monitoring.yaml
-  echo "  /monitoring → grafana applied"
-else
-  echo "  /monitoring → skipped (run monitoring deploy first)"
-fi
+kubectl apply -f k8s/gateway/ingress-conjur.yaml
 
 kubectl -n securetask rollout status deployment/presentation --timeout=2m
 
@@ -46,9 +32,9 @@ EXTERNAL_IP="$(kubectl -n ingress-nginx get svc ingress-nginx-controller \
 
 echo ""
 echo "=============================="
-echo " Gateway IP: ${EXTERNAL_IP}"
+echo " CyberArk Technical Challenge"
+echo " IP: ${EXTERNAL_IP}"
 echo "=============================="
-echo "  http://${EXTERNAL_IP}/app"
-echo "  http://${EXTERNAL_IP}/presentation"
-echo "  http://${EXTERNAL_IP}/ui"
-echo "  http://${EXTERNAL_IP}/monitoring"
+echo "  http://${EXTERNAL_IP}             → Conjur UI (start here)"
+echo "  http://${EXTERNAL_IP}/app         → Incident Tracker"
+echo "  http://${EXTERNAL_IP}/presentation → Architecture slides"
