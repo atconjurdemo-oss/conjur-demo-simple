@@ -2,6 +2,10 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
+# Apply OS security patches (fixes openssl CVEs in base image)
+RUN apt-get update && apt-get upgrade -y --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN addgroup --gid 10001 appgroup && \
     adduser  --uid 10001 --gid 10001 --no-create-home --disabled-password appuser
 
