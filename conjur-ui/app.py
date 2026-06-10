@@ -20,9 +20,10 @@ log = logging.getLogger(__name__)
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-secret-change-in-prod")
-app.config["PREFERRED_URL_SCHEME"] = os.environ.get("PREFERRED_URL_SCHEME", "http")
+app.config["PREFERRED_URL_SCHEME"]  = os.environ.get("PREFERRED_URL_SCHEME", "http")
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.config["SESSION_COOKIE_SECURE"]   = False
+app.config["SESSION_COOKIE_PATH"]     = "/"
 
 # Set SCRIPT_NAME so url_for() generates /ui/... paths (nginx strips the
 # prefix before forwarding, but redirects must still include it).
@@ -195,6 +196,7 @@ def refresh():
 
 # ── Dashboard ─────────────────────────────────────────────────────────────────
 
+@app.get("/dashboard")
 @app.get("/")
 @login_required
 def dashboard():
