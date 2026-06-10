@@ -60,11 +60,12 @@ jobs:
       - name: Scan webapp (Trivy)
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref:      ${{ env.WEBAPP_IMAGE }}:latest
-          format:         table
-          exit-code:      1
-          severity:       HIGH,CRITICAL
-          ignore-unfixed: true
+          image-ref:       ${{ env.WEBAPP_IMAGE }}:latest
+          format:          table
+          exit-code:       1
+          severity:        HIGH,CRITICAL
+          ignore-unfixed:  true
+          trivyignores:    .trivyignore
 
       - name: Push webapp
         uses: docker/build-push-action@v5
@@ -89,11 +90,12 @@ jobs:
       - name: Scan conjur-ui (Trivy)
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref:      ${{ env.CONJURUI_IMAGE }}:latest
-          format:         table
-          exit-code:      1
-          severity:       HIGH,CRITICAL
-          ignore-unfixed: true
+          image-ref:       ${{ env.CONJURUI_IMAGE }}:latest
+          format:          table
+          exit-code:       1
+          severity:        HIGH,CRITICAL
+          ignore-unfixed:  true
+          trivyignores:    .trivyignore
 
       - name: Push conjur-ui
         uses: docker/build-push-action@v5
