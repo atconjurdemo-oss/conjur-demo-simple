@@ -192,7 +192,7 @@
 
   <!-- ─────────────────────────────────────────────────────── SLIDE 1 -->
   <div class="slide slide-1">
-    <div class="slide-num">01 / 06 — Overview</div>
+    <div class="slide-num">01 / 07 — Overview</div>
     <h1>Zero Hardcoded Credentials</h1>
     <h2>Secure 2-Tier Application with CyberArk Conjur OSS on GKE</h2>
 
@@ -229,7 +229,7 @@
 
   <!-- ─────────────────────────────────────────────────────── SLIDE 2 -->
   <div class="slide slide-2">
-    <div class="slide-num">02 / 06 — Architecture Overview</div>
+    <div class="slide-num">02 / 07 — Architecture Overview</div>
     <h1>System Architecture</h1>
     <h2>All components and how they interact</h2>
 
@@ -275,7 +275,7 @@
 
   <!-- ─────────────────────────────────────────────────────── SLIDE 3 -->
   <div class="slide slide-3">
-    <div class="slide-num">03 / 06 — Conjur OSS Installation &amp; JWT Authentication Flow</div>
+    <div class="slide-num">03 / 07 — Conjur OSS Installation &amp; JWT Authentication Flow</div>
     <h1>Installation &amp; Authentication</h1>
     <h2>How Conjur is installed and how pods authenticate</h2>
 
@@ -361,7 +361,7 @@
 
   <!-- ─────────────────────────────────────────────────────── SLIDE 4 -->
   <div class="slide slide-4">
-    <div class="slide-num">04 / 06 — Conjur Configuration</div>
+    <div class="slide-num">04 / 07 — Conjur Configuration</div>
     <h1>Conjur Configuration</h1>
     <h2>Policies, variables, and identity-based access control</h2>
 
@@ -412,7 +412,7 @@
 
   <!-- ─────────────────────────────────────────────────────── SLIDE 5 -->
   <div class="slide slide-5">
-    <div class="slide-num">05 / 06 — CI/CD Pipelines</div>
+    <div class="slide-num">05 / 07 — CI/CD Pipelines</div>
     <h1>DevSecOps Pipelines</h1>
     <h2>Security is gated at every stage — nothing reaches production unscanned</h2>
 
@@ -499,7 +499,7 @@
 
   <!-- ─────────────────────────────────────────────────────── SLIDE 6 -->
   <div class="slide slide-6">
-    <div class="slide-num">06 / 06 — Security Posture &amp; Roadmap</div>
+    <div class="slide-num">06 / 07 — Security Posture &amp; Roadmap</div>
     <h1>Security Measures &amp; What to Improve</h1>
     <h2>Current controls and honest gaps</h2>
 
@@ -557,6 +557,91 @@
       <div class="improve-body">
         <h4>Policy as Code governance</h4>
         <p>Conjur policy changes currently require manual review. Implement OPA/Gatekeeper admission policies and require a two-person approval workflow for any change to Conjur access policies via PR review gates.</p>
+      </div>
+    </div>
+
+    <div class="links">
+      <a href="/app" class="link-btn">Open Incident Tracker</a>
+      <a href="/ui" class="link-btn outline">Open Conjur UI</a>
+      <a href="/" class="link-btn outline">Back to Home</a>
+    </div>
+  </div>
+
+  <!-- ─────────────────────────────────────────────────────── SLIDE 7 -->
+  <div class="slide slide-1">
+    <div class="slide-num">07 / 07 — AI-Assisted Development</div>
+    <h1>AI as a Force Multiplier</h1>
+    <h2>Using Claude AI to accelerate — not replace — engineering judgment</h2>
+
+    <p>
+      This project was built using <strong>Claude (Anthropic)</strong> as a coding assistant.
+      Every architectural decision, security requirement, and debugging direction
+      was driven by me — AI accelerated the implementation of decisions already made.
+    </p>
+
+    <h3>My Decisions · AI's Execution</h3>
+    <table>
+      <tr><th>Area</th><th>My Engineering Decision</th><th>What AI Accelerated</th></tr>
+      <tr>
+        <td>Architecture</td>
+        <td>Namespace isolation, single ingress IP, JWT over static API keys</td>
+        <td>Wrote Kubernetes manifests, Helm values, ingress routing rules</td>
+      </tr>
+      <tr>
+        <td>Secret management</td>
+        <td>Chose Conjur OSS, Push-to-File sidecar, zero k8s Secrets for credentials</td>
+        <td>Implemented policy files, sidecar config, secrets.env integration</td>
+      </tr>
+      <tr>
+        <td>DevSecOps pipeline</td>
+        <td>Required Trivy gate, SAST, SBOM, DAST before any production deploy</td>
+        <td>Authored all 4 GitHub Actions workflows and security tooling config</td>
+      </tr>
+      <tr>
+        <td>Debugging</td>
+        <td>Read every error, identified root cause (ingress rewrite, cookie scope, gunicorn)</td>
+        <td>Proposed and applied targeted fixes based on my diagnosis</td>
+      </tr>
+      <tr>
+        <td>Security hardening</td>
+        <td>Mandated non-root containers, CSRF, session isolation, probe exemptions</td>
+        <td>Implemented the controls across Dockerfiles, Flask config, k8s specs</td>
+      </tr>
+    </table>
+
+    <h3>Where AI Got It Wrong — and I Corrected It</h3>
+    <div class="grid-3">
+      <div class="box box-red">
+        <h4>WSGI middleware loop</h4>
+        <p>AI proposed 4 different SCRIPT_NAME approaches before I identified
+        that gunicorn intercepts the env var itself — leading to the
+        DispatcherMiddleware solution.</p>
+      </div>
+      <div class="box box-red">
+        <h4>Ingress ordering</h4>
+        <p>AI applied ingress rules in the wrong order, causing NGINX admission
+        webhook conflicts. I diagnosed the path ownership issue and directed
+        the correct apply sequence.</p>
+      </div>
+      <div class="box box-red">
+        <h4>Inline YAML Python</h4>
+        <p>AI embedded Python with quotes and dollar signs directly in a YAML
+        run block, causing a parse error. I recognised the escaping problem
+        and directed extraction to a script file.</p>
+      </div>
+    </div>
+
+    <h3>Key Takeaway</h3>
+    <div class="improve-item">
+      <div class="improve-icon">🎯</div>
+      <div class="improve-body">
+        <h4>AI eliminates boilerplate — it does not eliminate expertise</h4>
+        <p>
+          Knowing <em>what</em> to build, <em>why</em> a JWT authenticator needs specific policy annotations,
+          and <em>how</em> to read a 404 from an nginx rewrite — that comes from the engineer.
+          AI compressed days of implementation into hours. The engineering judgment that
+          made those hours productive was entirely human.
+        </p>
       </div>
     </div>
 
