@@ -3,7 +3,11 @@ FROM python:3.12-slim
 WORKDIR /app
 
 # Apply OS security patches (fixes openssl CVEs in base image)
-RUN apt-get update && apt-get upgrade -y --no-install-recommends \
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    "openssl=3.5.6-1~deb13u2" \
+    "libssl3t64=3.5.6-1~deb13u2" \
+    "openssl-provider-legacy=3.5.6-1~deb13u2" \
+    2>/dev/null || apt-get upgrade -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 RUN addgroup --gid 10001 appgroup && \
