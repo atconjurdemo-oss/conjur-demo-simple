@@ -89,8 +89,12 @@ jobs:
       - name: Initialize Conjur account
         if: inputs.skip_install == 'false'
         run: |
+          # Wait for pod to be fully ready before exec
+          kubectl -n conjur wait pod -l app=conjur-oss \
+            --for=condition=Ready --timeout=3m
           POD="$(kubectl -n conjur get pod -l app=conjur-oss \
             -o jsonpath='{.items[0].metadata.name}')"
+          echo "Using pod: ${POD}"
           ADMIN_KEY="$(kubectl -n conjur exec "${POD}" -c conjur-oss -- \
             conjurctl role retrieve-key "${CONJUR_ACCOUNT}:user:admin" \
             2>/dev/null | tr -d '[:space:]' || echo '')"
@@ -109,6 +113,8 @@ jobs:
       - name: Store TLS cert for sidecar
         run: |
           kubectl create namespace securetask --dry-run=client -o yaml | kubectl apply -f -
+          kubectl -n conjur wait pod -l app=conjur-oss \
+            --for=condition=Ready --timeout=3m
           POD="$(kubectl -n conjur get pod -l app=conjur-oss \
             -o jsonpath='{.items[0].metadata.name}')"
           CERT="$(kubectl -n conjur exec "${POD}" -c conjur-oss-nginx -- \
