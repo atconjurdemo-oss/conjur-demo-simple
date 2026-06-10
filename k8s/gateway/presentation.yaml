@@ -108,7 +108,12 @@ data:
             try_files /index.html =404;
         }
 
-        location /presentation {
+        location /presentation/ {
+            index index.html;
             try_files $uri $uri/ /presentation/index.html;
+        }
+
+        location = /presentation {
+            return 301 /presentation/;
         }
     }

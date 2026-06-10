@@ -13,7 +13,6 @@ from pathlib import Path
 import requests
 from flask import (Flask, render_template, request, redirect,
                    url_for, session, flash, jsonify)
-from werkzeug.middleware.proxy_fix import ProxyFix
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s — %(message)s")
@@ -22,9 +21,18 @@ log = logging.getLogger(__name__)
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-secret-change-in-prod")
 app.config["PREFERRED_URL_SCHEME"] = "https"
-# Trust the X-Forwarded-Prefix header set by nginx ingress so url_for()
-# generates /ui/... paths when running behind the /ui prefix.
-app.wsgi_app = ProxyFix(app.wsgi_app, x_prefix=1)
+
+# Force SCRIPT_NAME so url_for() generates /ui/... when mounted at a subpath.
+_SCRIPT_NAME = os.environ.get("SCRIPT_NAME", "")
+if _SCRIPT_NAME:
+    _inner = app.wsgi_app
+    def _set_script_name(environ, start_response):
+        environ["SCRIPT_NAME"] = _SCRIPT_NAME
+        path = environ.get("PATH_INFO", "")
+        if path.startswith(_SCRIPT_NAME):
+            environ["PATH_INFO"] = path[len(_SCRIPT_NAME):] or "/"
+        return _inner(environ, start_response)
+    app.wsgi_app = _set_script_name
 
 CONJUR_URL     = os.environ.get("CONJUR_APPLIANCE_URL", "https://conjur-oss.conjur.svc.cluster.local")
 CONJUR_ACCOUNT = os.environ.get("CONJUR_ACCOUNT", "myConjurAccount")

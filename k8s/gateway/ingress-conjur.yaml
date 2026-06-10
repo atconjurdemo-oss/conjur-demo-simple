@@ -9,7 +9,6 @@ metadata:
     nginx.ingress.kubernetes.io/ssl-redirect: "false"
     nginx.ingress.kubernetes.io/rewrite-target: /$2
     nginx.ingress.kubernetes.io/use-regex: "true"
-    nginx.ingress.kubernetes.io/proxy-set-headers: "conjur/conjur-ui-headers"
 spec:
   ingressClassName: nginx
   rules:
@@ -22,14 +21,3 @@ spec:
                 name: conjur-ui
                 port:
                   number: 80
-
----
-# Custom headers forwarded to conjur-ui pod.
-# proxy-set-headers is the snippet-free way to inject headers.
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: conjur-ui-headers
-  namespace: conjur
-data:
-  X-Forwarded-Prefix: "/ui"

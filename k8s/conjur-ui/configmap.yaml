@@ -14,3 +14,4 @@ data:
   CONJUR_HOST_ID:          "host/myapp/conjur-ui"
   CONJUR_NAMESPACE:        "conjur"
   APPLICATION_ROOT:        "/"
+  SCRIPT_NAME:             "/ui"
