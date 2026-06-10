@@ -24,8 +24,9 @@ app.config["PREFERRED_URL_SCHEME"] = "https"
 
 # Set SCRIPT_NAME so url_for() generates /ui/... paths (nginx strips the
 # prefix before forwarding, but redirects must still include it).
-# Exempt probe paths that hit the pod directly without the prefix.
-_SCRIPT_NAME = os.environ.get("SCRIPT_NAME", "")
+# Use APP_SUBPATH not SCRIPT_NAME — gunicorn reads SCRIPT_NAME from env
+# and injects it into every WSGI request, breaking k8s probe dispatch.
+_SCRIPT_NAME = os.environ.get("APP_SUBPATH", "")
 _PROBE_PATHS  = {"/healthz", "/readyz", "/livez"}
 if _SCRIPT_NAME:
     _inner = app.wsgi_app
