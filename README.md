@@ -1,196 +1,192 @@
-# Conjur OSS Demo — Secure 2-Tier App on GKE
+# CyberArk Technical Challenge — Conjur OSS on GKE
 
 Demonstrates **zero hardcoded credentials** using CyberArk Conjur OSS.
-The database password never appears in manifests, environment variables, or source code —
-it is fetched at pod startup via JWT authentication against Conjur.
+Database passwords never appear in manifests, environment variables, or source code —
+they are fetched at pod startup via Kubernetes JWT authentication against Conjur.
+
+---
+
+## Live Services
+
+| Service | URL |
+|---|---|
+| Landing Page | `http://<NGINX-IP>/` |
+| Incident Tracker | `http://<NGINX-IP>/app` |
+| Conjur Admin UI | `http://<NGINX-IP>/ui` |
+| Architecture Presentation | `http://<NGINX-IP>/presentation/` |
+
+```bash
+kubectl -n ingress-nginx get svc ingress-nginx-controller \
+  -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+```
 
 ---
 
 ## Architecture
 
 ```
-Internet → NGINX Ingress → Flask App (Incident Tracker)  http://<IP>/app
-                                  ↓ JWT auth at startup
-                             Conjur OSS (cluster-internal)
-                                  ↓ returns secrets
-                              MySQL 8  (securetask namespace)
+Internet
+  └── NGINX Ingress (single external IP)
+        ├── /              → Landing page (nginx static)
+        ├── /app           → Incident Tracker (Flask + MySQL)
+        ├── /ui            → Conjur Admin UI (Flask)
+        └── /presentation/ → Architecture slides (nginx static)
 
-Internet → LoadBalancer → Conjur UI (Admin Dashboard)    http://<UI-IP>
-                                  ↓ admin login
-                             Conjur OSS
+securetask namespace               conjur namespace
+┌──────────────────────┐          ┌──────────────────────────┐
+│ webapp pod           │          │ Conjur OSS + PostgreSQL   │
+│  ├── init: sidecar ──│──JWT────▶│                          │
+│  └── Flask app       │          │ conjur-ui pod             │
+│                      │          │  ├── init: sidecar ───JWT▶│
+│ mysql pod            │          │  └── Flask Admin UI       │
+│  └── MySQL 8         │          └──────────────────────────┘
+└──────────────────────┘
 ```
 
-### Secret flow (no passwords in k8s)
+### Secret delivery (Push-to-File sidecar)
 
 ```
 1. Pod starts
-2. conjur-secrets-provider init container runs
-   └── Reads pod SA JWT from /var/run/secrets/kubernetes.io/serviceaccount/token
-   └── POSTs JWT to Conjur /authn-jwt/k8s-cluster/...
-   └── Conjur validates JWT against GKE OIDC issuer
-   └── Returns DB credentials
-   └── Writes /conjur/secrets/secrets.env
+2. Secrets Provider init container:
+   ├── Reads pod SA JWT from /var/run/secrets/kubernetes.io/serviceaccount/token
+   ├── POSTs JWT to Conjur /authn-jwt/k8s-cluster/...
+   ├── Conjur validates JWT against GKE OIDC issuer
+   ├── Returns DB credentials
+   └── Writes /conjur/secrets/secrets.env (in-memory shared volume)
 3. Flask app starts → reads secrets.env → connects to MySQL
 ```
 
+No Kubernetes Secrets are used for database credentials.
+
 ---
 
-## Repository layout
+## Repository Layout
 
 ```
 conjur-demo-simple/
-├── app/                       Flask Incident Tracker
-├── conjur-ui/                 Flask Conjur Admin UI
+├── app/                        Incident Tracker (Flask + MySQL)
+├── conjur-ui/                  Conjur Admin UI (Flask)
+├── landing/                    Landing page (static HTML)
+├── presentation/               Architecture slides (static HTML)
 ├── conjur-policy/
-│   ├── root.yml               Top-level policy branches
-│   ├── database.yml           Secrets + host identities + permits
-│   └── authn-jwt.yml          JWT authenticator webservice
+│   ├── root.yml                Top-level policy branches
+│   ├── database.yml            Secrets + host identities + permits
+│   └── authn-jwt.yml           JWT authenticator webservice
 ├── k8s/
 │   ├── 00-namespace.yaml
-│   ├── conjur/
-│   │   └── helm-values.yaml   Conjur OSS Helm values
-│   ├── conjur-ui/
-│   │   ├── serviceaccount.yaml
-│   │   ├── configmap.yaml
-│   │   └── deployment.yaml
-│   ├── mysql/
-│   │   └── statefulset.yaml
-│   └── webapp/
-│       ├── serviceaccount.yaml
-│       ├── configmap.yaml
-│       ├── deployment.yaml
-│       └── ingress.yaml
-└── scripts/
-    ├── 01-install-conjur.sh   Install NGINX + Conjur OSS
-    ├── 02-init-account.sh     Initialize Conjur account (once)
-    ├── 03-seed.sh             Load policies + write secrets
-    ├── 04-deploy-app.sh       Build + deploy Incident Tracker
-    ├── 05-verify.sh           Health check all components
-    └── 06-deploy-conjur-ui.sh Build + deploy Conjur Admin UI
+│   ├── conjur-ui/              serviceaccount, configmap, deployment
+│   ├── mysql/                  statefulset
+│   ├── webapp/                 serviceaccount, configmap, deployment
+│   └── gateway/                ingress-conjur, ingress-securetask, presentation
+├── .zap/
+│   ├── rules.tsv               DAST false-positive suppressions
+│   └── xml_to_sarif.py         ZAP XML → SARIF converter
+└── .github/workflows/
+    ├── ci.yml                  Lint · SAST · OCV on pull requests
+    ├── cd.yml                  Build · Scan · SBOM · Push · Deploy · DAST
+    ├── conjur-install.yml      Install NGINX Ingress + Conjur OSS (manual)
+    └── conjur-seed.yml         Load policies + write secrets (manual)
 ```
 
 ---
 
-## Prerequisites
+## Pipelines
 
-| Tool | Install |
-|---|---|
-| `kubectl` | Configured against your GKE cluster |
-| `helm` | `curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 \| bash` |
-| `gcloud` | Google Cloud SDK |
+### First-time cluster setup (manual triggers)
 
----
-
-## Deploy in 6 steps
-
-### 1 — Install Conjur OSS
-
-```bash
-bash scripts/01-install-conjur.sh
-```
+**1. Conjur Installation** (`conjur-install.yml`)
 
 Installs NGINX Ingress Controller and Conjur OSS via Helm.
-Conjur is accessible only within the cluster — no external URL needed.
+Initializes the Conjur account and stores the admin API key as a cluster Secret.
 
-### 2 — Initialize account (once)
-
-```bash
-bash scripts/02-init-account.sh
-```
-
-Creates the Conjur account and stores the admin API key as a k8s Secret.
-
-### 3 — Load policies and seed secrets
-
-```bash
-export DB_APP_PASSWORD=YourSecurePassword
-bash scripts/03-seed.sh
-```
+**2. Conjur Seed** (`conjur-seed.yml`)
 
 Loads the three policy files and writes all database secrets to Conjur.
-The root password is generated once and stored in Conjur — never regenerated on re-runs.
+Run once after installation; safe to re-run (idempotent).
 
-### 4 — Deploy the Incident Tracker
+### Continuous Delivery (`cd.yml`)
 
-```bash
-export PROJECT_ID=your-gcp-project
-export REGION=europe-west1
-bash scripts/04-deploy-app.sh
+Triggered automatically on every push to `main` that touches `app/`, `conjur-ui/`, `landing/`, or `k8s/`.
+
+```
+Build webapp
+  └── Trivy scan (HIGH/CRITICAL, exit 1)
+  └── Push to GHCR
+  └── SBOM → sbom-webapp-<sha>.spdx.json (artifact)
+
+Build conjur-ui
+  └── Trivy scan (HIGH/CRITICAL, exit 1)
+  └── Push to GHCR
+  └── SBOM → sbom-conjur-ui-<sha>.spdx.json (artifact)
+
+Deploy (production environment gate)
+  └── Apply k8s manifests
+  └── Smoke test (/healthz)
+  └── DAST — OWASP ZAP baseline scan → SARIF uploaded to GitHub Security
 ```
 
-Builds the Docker image (or uses Cloud Build if Docker is unavailable),
-applies all k8s manifests, and waits for the rollout.
+### CI (`ci.yml`)
 
-### 5 — Verify
-
-```bash
-bash scripts/05-verify.sh
-```
-
-Checks every component and confirms all secrets are readable in Conjur.
-
-### 6 — Deploy Conjur Admin UI (optional)
-
-```bash
-bash scripts/06-deploy-conjur-ui.sh
-```
-
-Deploys the Conjur UI dashboard — shows policies, variables, and live audit logs.
+Runs on pull requests:
+- **Semgrep** SAST — Python security rules
+- **pip-audit** OCV (Open-source Component Verification)
+- **Lint** — flake8
 
 ---
 
-## Access
+## Credentials
 
-| App | URL |
-|---|---|
-| Incident Tracker | `http://<NGINX-IP>/app` |
-| Conjur Admin UI | `http://<CONJUR-UI-IP>` |
+### Conjur Admin UI login
 
-Get IPs:
+- **Username:** `admin`
+- **API Key:**
 ```bash
-# Incident Tracker IP
-kubectl -n ingress-nginx get svc ingress-nginx-controller \
-  -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
-
-# Conjur UI IP
-kubectl -n conjur get svc conjur-ui \
-  -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
-```
-
-Conjur UI login:
-```bash
-# Account: myConjurAccount
-# Username: admin
-# Password:
 kubectl -n conjur get secret conjur-admin-api-key \
   -o jsonpath='{.data.key}' | base64 -d
 ```
 
 ---
 
-## Conjur policy summary
+## Conjur Policy Summary
 
 | Variable | Path | Who can read |
 |---|---|---|
-| DB host/port/user/name | `myapp/database/*` | `webapp` + `conjur-ui` pods |
-| DB app password | `myapp/database/password` | `webapp` + `conjur-ui` pods |
-| DB root password | `myapp/database/root-password` | `webapp` pod only |
-| JWT issuer/jwks/audience | `conjur/authn-jwt/k8s-cluster/*` | Conjur internal |
+| DB host / port / user / name | `myapp/database/*` | `webapp` + `conjur-ui` |
+| DB app password | `myapp/database/password` | `webapp` + `conjur-ui` |
+| DB root password | `myapp/database/root-password` | `webapp` only |
+| JWT issuer / JWKS / audience | `conjur/authn-jwt/k8s-cluster/*` | Conjur internal |
 
-Authentication:
-- `host/myapp/webapp` — Kubernetes SA `webapp` in namespace `securetask`
-- `host/myapp/conjur-ui` — Kubernetes SA `conjur-ui` in namespace `conjur`
+Identities:
+- `host/myapp/webapp` — SA `webapp` in namespace `securetask`
+- `host/myapp/conjur-ui` — SA `conjur-ui` in namespace `conjur`
 
 ---
 
-## k8s Secrets installed
+## Kubernetes Secrets
 
-| Secret | Namespace | Contains | Sensitive |
+| Secret | Namespace | Purpose | Sensitivity |
 |---|---|---|---|
-| `conjur-data-key` | conjur | Conjur encryption key | High |
+| `conjur-data-key` | conjur | Conjur database encryption key | High |
 | `conjur-admin-api-key` | conjur | Conjur admin API key | High |
-| `conjur-ssl-cert` | securetask | Conjur self-signed cert | Low |
-| `flask-secret` | securetask | Flask CSRF key | Medium |
-| `conjur-ui-secret` | conjur | Conjur UI Flask key | Medium |
+| `conjur-ssl-cert` | securetask | Conjur TLS cert for sidecar | Low |
+| `flask-secret` | securetask | Webapp CSRF signing key | Medium |
+| `conjur-ui-secret` | conjur | Conjur UI session signing key | Medium |
 
-No MySQL passwords in k8s Secrets — both are fetched from Conjur at pod startup.
+**No MySQL passwords are stored in Kubernetes Secrets.**
+Both are fetched from Conjur at pod startup via the Secrets Provider sidecar.
+
+---
+
+## Security Controls
+
+| Control | Implementation |
+|---|---|
+| Secret management | CyberArk Conjur OSS |
+| Authentication | Kubernetes JWT (pod identity = credential) |
+| Secret delivery | Secrets Provider sidecar — Push-to-File |
+| Container scanning | Trivy (HIGH/CRITICAL, blocks push) |
+| SAST | Semgrep (Python security rules) |
+| OCV | pip-audit (dependency CVE check) |
+| DAST | OWASP ZAP baseline scan |
+| SBOM | Syft via anchore/sbom-action (SPDX JSON) |
+| CSRF | Flask-WTF on all state-changing routes |
