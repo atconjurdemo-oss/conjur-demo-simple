@@ -18,11 +18,15 @@ kubectl -n monitoring create secret generic grafana-admin \
   --from-literal=password="${GRAFANA_PASS}" \
   --dry-run=client -o yaml | kubectl apply -f -
 
+EXTERNAL_IP="$(kubectl -n ingress-nginx get svc ingress-nginx-controller \
+  -o jsonpath='{.status.loadBalancer.ingress[0].ip}')"
+
 helm upgrade --install kube-prometheus-stack \
   prometheus-community/kube-prometheus-stack \
   --namespace monitoring \
   --values k8s/monitoring/helm-values.yaml \
   --set grafana.adminPassword="${GRAFANA_PASS}" \
+  --set "grafana.grafana\\.ini.server.root_url=http://${EXTERNAL_IP}/monitoring/" \
   --wait --timeout 8m
 
 echo "==> [2/3] Applying dashboard and ServiceMonitor..."
