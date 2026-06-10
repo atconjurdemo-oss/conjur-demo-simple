@@ -131,6 +131,7 @@ jobs:
     permissions:
       contents: read
       security-events: write
+      issues: write
 
     steps:
       - uses: actions/checkout@v4
@@ -203,18 +204,47 @@ jobs:
           echo "Deployed webapp:${{ needs.build-scan.outputs.sha }}" >> $GITHUB_STEP_SUMMARY
 
       - name: DAST (OWASP ZAP)
-        uses: zaproxy/action-baseline@v0.12.0
-        with:
-          target:          "http://localhost:18080/app/"
-          rules_file_name: ".zap/rules.tsv"
-          cmd_options:     "-I"
-          artifact_name:   zap-report
+        run: |
+          docker run --rm --network host \
+            -v "${{ github.workspace }}:/zap/wrk:rw" \
+            ghcr.io/zaproxy/zaproxy:stable zap-baseline.py \
+            -t "http://localhost:18080/app/" \
+            -I -J zap-report.json -r zap-report.html -x zap-report.xml \
+            --auto 2>&1 || true
+          # Convert XML to SARIF if the XML was produced
+          if [ -f zap-report.xml ]; then
+            pip -q install zaproxy-sarif 2>/dev/null || true
+            python3 -c "
+import json, sys
+try:
+    import xml.etree.ElementTree as ET
+    tree = ET.parse('zap-report.xml')
+    root = tree.getroot()
+    results = []
+    for alert in root.iter('alertitem'):
+        name = alert.findtext('name','unknown')
+        desc = alert.findtext('desc','')
+        risk = alert.findtext('riskdesc','')
+        level = 'error' if 'High' in risk else 'warning' if 'Medium' in risk else 'note'
+        for inst in alert.iter('instance'):
+            uri = inst.findtext('uri','')
+            results.append({'ruleId': name,'level': level,
+              'message':{'text': f'{name}: {desc[:200]}'},
+              'locations':[{'physicalLocation':{'artifactLocation':{'uri': uri}}}]})
+    sarif = {'version':'2.1.0','\$schema':'https://json.schemastore.org/sarif-2.1.0.json',
+             'runs':[{'tool':{'driver':{'name':'OWASP ZAP','rules':[]}},'results': results}]}
+    json.dump(sarif, open('zap-report.sarif','w'))
+    print(f'SARIF written with {len(results)} results')
+except Exception as e:
+    print(f'SARIF conversion skipped: {e}')
+" || true
+          fi
         continue-on-error: true
 
       - name: Upload ZAP SARIF
-        if: always()
+        if: always() && hashFiles('zap-report.sarif') != ''
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: zap-report.sarif
-          category: zap-dast
+          category:   zap-dast
         continue-on-error: true
