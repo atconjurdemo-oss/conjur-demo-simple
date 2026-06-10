@@ -13,6 +13,8 @@ from pathlib import Path
 import requests
 from flask import (Flask, render_template, request, redirect,
                    url_for, session, flash, jsonify)
+from werkzeug.middleware.dispatcher import DispatcherMiddleware
+from werkzeug.wrappers import Response
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s — %(message)s")
@@ -20,24 +22,12 @@ log = logging.getLogger(__name__)
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-secret-change-in-prod")
-app.config["PREFERRED_URL_SCHEME"]  = os.environ.get("PREFERRED_URL_SCHEME", "http")
+_SUBPATH = os.environ.get("APPLICATION_ROOT", "/").rstrip("/")
+app.config["APPLICATION_ROOT"]        = _SUBPATH or "/"
+app.config["PREFERRED_URL_SCHEME"]    = os.environ.get("PREFERRED_URL_SCHEME", "http")
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.config["SESSION_COOKIE_SECURE"]   = False
-app.config["SESSION_COOKIE_PATH"]     = "/"
-
-# Set SCRIPT_NAME so url_for() generates /ui/... paths (nginx strips the
-# prefix before forwarding, but redirects must still include it).
-# Use APP_SUBPATH not SCRIPT_NAME — gunicorn reads SCRIPT_NAME from env
-# and injects it into every WSGI request, breaking k8s probe dispatch.
-_SCRIPT_NAME = os.environ.get("APP_SUBPATH", "")
-_PROBE_PATHS  = {"/healthz", "/readyz", "/livez"}
-if _SCRIPT_NAME:
-    _inner = app.wsgi_app
-    def _set_script_name(environ, start_response):
-        if environ.get("PATH_INFO") not in _PROBE_PATHS:
-            environ["SCRIPT_NAME"] = _SCRIPT_NAME
-        return _inner(environ, start_response)
-    app.wsgi_app = _set_script_name
+app.config["SESSION_COOKIE_PATH"]     = _SUBPATH or "/"
 
 CONJUR_URL     = os.environ.get("CONJUR_APPLIANCE_URL", "https://conjur-oss.conjur.svc.cluster.local")
 CONJUR_ACCOUNT = os.environ.get("CONJUR_ACCOUNT", "myConjurAccount")
@@ -384,3 +374,10 @@ def audit():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8080, debug=True)
+
+# Mount under APPLICATION_ROOT so gunicorn serves the full /ui/... paths.
+# DispatcherMiddleware sets SCRIPT_NAME correctly for url_for() and
+# leaves paths outside the prefix (e.g. /healthz probes) returning 404
+# from a no-op default app — that's fine since probes are scoped to /healthz.
+_not_found = Response("not found", status=404)
+application = DispatcherMiddleware(_not_found, {_SUBPATH: app}) if _SUBPATH else app

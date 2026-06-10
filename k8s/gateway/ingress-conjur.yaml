@@ -1,5 +1,5 @@
 ---
-# Conjur UI — serves at /ui
+# Conjur UI — serves at /ui (no rewrite — Flask owns the full /ui/... paths)
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -7,15 +7,13 @@ metadata:
   namespace: conjur
   annotations:
     nginx.ingress.kubernetes.io/ssl-redirect: "false"
-    nginx.ingress.kubernetes.io/rewrite-target: /$2
-    nginx.ingress.kubernetes.io/use-regex: "true"
 spec:
   ingressClassName: nginx
   rules:
     - http:
         paths:
-          - path: /ui(/|$)(.*)
-            pathType: ImplementationSpecific
+          - path: /ui
+            pathType: Prefix
             backend:
               service:
                 name: conjur-ui
