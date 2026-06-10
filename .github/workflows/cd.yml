@@ -11,6 +11,7 @@ on:
       - "app/**"
       - "conjur-ui/**"
       - "landing/**"
+      - "presentation/**"
       - "k8s/**"
       - ".github/workflows/cd.yml"
 
