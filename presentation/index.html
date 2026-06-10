@@ -3,88 +3,185 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Conjur Demo — Architecture</title>
+  <title>CyberArk Technical Challenge — Presentation</title>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: #0f1117; color: #e2e8f0; min-height: 100vh;
+      background: #0d1117; color: #e6edf3; min-height: 100vh;
     }
+
+    /* ── Nav ── */
     nav {
-      background: #1a1f2e; border-bottom: 1px solid #2d3748;
-      padding: 12px 32px; display: flex; align-items: center; gap: 24px;
+      background: #161b22; border-bottom: 1px solid #30363d;
+      padding: 0 32px; height: 56px;
+      display: flex; align-items: center; gap: 24px; position: sticky; top: 0; z-index: 10;
     }
-    nav .logo { font-weight: 700; color: #63b3ed; font-size: 16px; }
+    nav .logo { font-weight: 700; color: #58a6ff; font-size: 15px; white-space: nowrap; }
+    nav .logo span { color: #8b949e; font-weight: 400; }
     nav a {
-      color: #a0aec0; text-decoration: none; font-size: 14px; padding: 6px 12px;
-      border-radius: 6px; transition: background 0.15s;
+      color: #8b949e; text-decoration: none; font-size: 14px;
+      padding: 6px 12px; border-radius: 6px; transition: background 0.15s;
     }
-    nav a:hover, nav a.active { background: #2d3748; color: #e2e8f0; }
-    .slides { max-width: 960px; margin: 0 auto; padding: 32px 16px; }
+    nav a:hover, nav a.active { background: #21262d; color: #e6edf3; }
+
+    /* ── Layout ── */
+    .slides { max-width: 1000px; margin: 0 auto; padding: 40px 16px 80px; }
+
+    /* ── Slide card ── */
     .slide {
-      background: #1a1f2e; border: 1px solid #2d3748; border-radius: 12px;
-      padding: 40px; margin-bottom: 32px;
+      background: #161b22; border: 1px solid #30363d; border-radius: 16px;
+      padding: 48px 48px 40px; margin-bottom: 40px; position: relative;
+      overflow: hidden;
     }
+    .slide::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    }
+    .slide-1::before { background: linear-gradient(90deg,#58a6ff,#3fb950); }
+    .slide-2::before { background: linear-gradient(90deg,#3fb950,#58a6ff); }
+    .slide-3::before { background: linear-gradient(90deg,#f78166,#ffa657); }
+    .slide-4::before { background: linear-gradient(90deg,#bc8cff,#58a6ff); }
+    .slide-5::before { background: linear-gradient(90deg,#ffa657,#f78166); }
+    .slide-6::before { background: linear-gradient(90deg,#58a6ff,#bc8cff); }
+
     .slide-num {
-      font-size: 11px; color: #4a5568; text-transform: uppercase;
-      letter-spacing: 0.1em; margin-bottom: 8px;
+      font-size: 11px; color: #484f58; text-transform: uppercase;
+      letter-spacing: 0.12em; margin-bottom: 12px; font-weight: 600;
     }
-    h1 { font-size: 28px; color: #63b3ed; margin-bottom: 8px; }
-    h2 { font-size: 22px; color: #90cdf4; margin-bottom: 16px; }
-    h3 { font-size: 16px; color: #a0aec0; margin: 20px 0 8px; }
-    p  { color: #a0aec0; line-height: 1.7; margin-bottom: 12px; }
-    .tag {
-      display: inline-block; background: #2d3748; color: #90cdf4;
-      border-radius: 4px; padding: 2px 8px; font-size: 12px; margin: 2px;
-    }
-    .tag.green { color: #68d391; }
-    .tag.red   { color: #fc8181; }
-    pre {
-      background: #0f1117; border: 1px solid #2d3748; border-radius: 8px;
-      padding: 16px; font-size: 13px; color: #9cdcfe; overflow-x: auto;
-      margin: 12px 0;
-    }
-    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
+    .slide h1 { font-size: 30px; font-weight: 800; color: #e6edf3; margin-bottom: 6px; line-height: 1.2; }
+    .slide h2 { font-size: 18px; font-weight: 400; color: #8b949e; margin-bottom: 28px; }
+    .slide h3 { font-size: 14px; font-weight: 700; color: #58a6ff; text-transform: uppercase;
+                letter-spacing: 0.06em; margin: 24px 0 10px; }
+    .slide p  { color: #8b949e; line-height: 1.7; margin-bottom: 12px; font-size: 15px; }
+    .slide strong { color: #e6edf3; }
+
+    /* ── Grid ── */
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 20px; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-top: 20px; }
+    .grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 12px; margin-top: 20px; }
+    @media(max-width:700px){ .grid-2,.grid-3,.grid-4 { grid-template-columns: 1fr; } }
+
+    /* ── Box ── */
     .box {
-      background: #0f1117; border: 1px solid #2d3748; border-radius: 8px;
-      padding: 16px;
+      background: #0d1117; border: 1px solid #30363d; border-radius: 10px; padding: 20px;
     }
-    .box h4 { color: #63b3ed; font-size: 14px; margin-bottom: 8px; }
-    .box p  { font-size: 13px; color: #718096; margin: 0; }
-    .flow {
-      display: flex; flex-direction: column; gap: 8px; margin: 16px 0;
+    .box h4 { font-size: 13px; font-weight: 700; color: #58a6ff; margin-bottom: 8px; }
+    .box p  { font-size: 13px; color: #8b949e; margin: 0; line-height: 1.6; }
+
+    .box-green  { border-color: #1a4731; }
+    .box-green h4 { color: #3fb950; }
+    .box-orange { border-color: #47330d; }
+    .box-orange h4 { color: #ffa657; }
+    .box-purple { border-color: #2d1a47; }
+    .box-purple h4 { color: #bc8cff; }
+    .box-red    { border-color: #471a1a; }
+    .box-red h4 { color: #f78166; }
+
+    /* ── Tags ── */
+    .tag {
+      display: inline-block; border-radius: 100px; padding: 3px 10px;
+      font-size: 12px; font-weight: 600; margin: 2px;
     }
-    .step {
-      display: flex; align-items: flex-start; gap: 12px;
+    .tag-blue   { background: #0d1a2d; color: #58a6ff;  border: 1px solid #1a3047; }
+    .tag-green  { background: #0d2d1a; color: #3fb950;  border: 1px solid #1a4731; }
+    .tag-red    { background: #2d0d0d; color: #f78166;  border: 1px solid #471a1a; }
+    .tag-orange { background: #2d1a0d; color: #ffa657;  border: 1px solid #47330d; }
+    .tag-purple { background: #1a0d2d; color: #bc8cff;  border: 1px solid #2d1a47; }
+
+    /* ── Code / Pre ── */
+    pre {
+      background: #0d1117; border: 1px solid #30363d; border-radius: 8px;
+      padding: 20px; font-size: 13px; color: #79c0ff; overflow-x: auto;
+      margin: 16px 0; line-height: 1.6; font-family: 'SF Mono','Fira Code',monospace;
     }
+    code { font-family: 'SF Mono','Fira Code',monospace; font-size: 12px;
+           background: #1c2128; padding: 2px 6px; border-radius: 4px; color: #79c0ff; }
+
+    /* ── Flow steps ── */
+    .flow { display: flex; flex-direction: column; gap: 0; margin: 20px 0; }
+    .step { display: flex; align-items: flex-start; gap: 16px; padding: 14px 0;
+            border-bottom: 1px solid #21262d; }
+    .step:last-child { border-bottom: none; }
     .step-num {
-      background: #2b6cb0; color: #fff; border-radius: 50%;
-      width: 24px; height: 24px; display: flex; align-items: center;
-      justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0;
+      background: #1c2128; border: 1px solid #30363d; color: #58a6ff;
+      border-radius: 50%; width: 28px; height: 28px; display: flex;
+      align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 700; flex-shrink: 0; margin-top: 1px;
     }
-    .step-text { color: #a0aec0; font-size: 14px; line-height: 1.6; }
-    .step-text strong { color: #e2e8f0; }
-    table { width: 100%; border-collapse: collapse; margin-top: 12px; }
-    th { text-align: left; color: #718096; font-size: 12px; text-transform: uppercase;
-         letter-spacing: 0.05em; padding: 8px 12px; border-bottom: 1px solid #2d3748; }
-    td { padding: 10px 12px; border-bottom: 1px solid #1a1f2e; font-size: 14px; color: #a0aec0; }
-    td:first-child { color: #e2e8f0; font-weight: 500; }
-    .check { color: #68d391; }
-    .cross { color: #fc8181; }
-    .links { display: flex; gap: 12px; margin-top: 24px; flex-wrap: wrap; }
+    .step-body { flex: 1; }
+    .step-body strong { color: #e6edf3; font-size: 14px; display: block; margin-bottom: 3px; }
+    .step-body span { color: #8b949e; font-size: 13px; line-height: 1.6; }
+
+    /* ── Table ── */
+    table { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 16px; }
+    th { text-align: left; color: #484f58; font-size: 11px; text-transform: uppercase;
+         letter-spacing: 0.08em; padding: 8px 14px; border-bottom: 1px solid #30363d; }
+    td { padding: 10px 14px; border-bottom: 1px solid #21262d; color: #8b949e; }
+    td:first-child { color: #e6edf3; font-weight: 500; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(255,255,255,.02); }
+    .check { color: #3fb950; font-weight: 700; }
+    .cross { color: #f78166; font-weight: 700; }
+
+    /* ── Links ── */
+    .links { display: flex; gap: 12px; margin-top: 28px; flex-wrap: wrap; }
     .link-btn {
-      background: #2b6cb0; color: #fff; text-decoration: none;
-      padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 600;
+      background: #1f6feb; color: #fff; text-decoration: none;
+      padding: 10px 22px; border-radius: 8px; font-size: 14px; font-weight: 600;
+      transition: background 0.15s;
     }
+    .link-btn:hover { background: #388bfd; }
     .link-btn.outline {
-      background: transparent; border: 1px solid #2b6cb0; color: #90cdf4;
+      background: transparent; border: 1px solid #30363d; color: #8b949e;
     }
+    .link-btn.outline:hover { border-color: #58a6ff; color: #58a6ff; }
+
+    /* ── Arch diagram ── */
+    .arch {
+      background: #0d1117; border: 1px solid #30363d; border-radius: 10px;
+      padding: 24px; margin: 20px 0; font-family: 'SF Mono','Fira Code',monospace;
+      font-size: 13px; line-height: 1.8; color: #8b949e; overflow-x: auto;
+    }
+    .arch .hl  { color: #58a6ff; font-weight: 700; }
+    .arch .grn { color: #3fb950; }
+    .arch .org { color: #ffa657; }
+    .arch .pur { color: #bc8cff; }
+
+    /* ── Improve items ── */
+    .improve-item {
+      display: flex; gap: 16px; align-items: flex-start;
+      background: #0d1117; border: 1px solid #30363d; border-radius: 10px;
+      padding: 18px 20px; margin-bottom: 12px;
+    }
+    .improve-icon { font-size: 22px; flex-shrink: 0; margin-top: 1px; }
+    .improve-body h4 { font-size: 14px; font-weight: 700; color: #e6edf3; margin-bottom: 4px; }
+    .improve-body p  { font-size: 13px; color: #8b949e; margin: 0; line-height: 1.6; }
+
+    /* ── Pipeline stages ── */
+    .pipeline {
+      display: flex; gap: 0; margin: 20px 0; overflow-x: auto;
+    }
+    .pipe-stage {
+      flex: 1; min-width: 110px; background: #0d1117;
+      border: 1px solid #30363d; padding: 16px 14px; position: relative;
+      text-align: center;
+    }
+    .pipe-stage:not(:last-child)::after {
+      content: '▶'; position: absolute; right: -10px; top: 50%;
+      transform: translateY(-50%); color: #30363d; font-size: 14px; z-index: 1;
+    }
+    .pipe-stage:first-child { border-radius: 8px 0 0 8px; }
+    .pipe-stage:last-child  { border-radius: 0 8px 8px 0; }
+    .pipe-icon { font-size: 20px; margin-bottom: 6px; }
+    .pipe-label { font-size: 11px; font-weight: 700; color: #e6edf3;
+                  text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+    .pipe-sub { font-size: 11px; color: #484f58; line-height: 1.4; }
   </style>
 </head>
 <body>
 
 <nav>
-  <div class="logo">⚡ CyberArk Technical Challenge — Conjur OSS</div>
+  <div class="logo">⚡ CyberArk Technical Challenge <span>— Conjur OSS</span></div>
   <a href="/">Home</a>
   <a href="/ui">Conjur UI</a>
   <a href="/app">Incident Tracker</a>
@@ -93,181 +190,380 @@
 
 <div class="slides">
 
-  <!-- Slide 1: Overview -->
-  <div class="slide">
-    <div class="slide-num">01 / 05</div>
+  <!-- ─────────────────────────────────────────────────────── SLIDE 1 -->
+  <div class="slide slide-1">
+    <div class="slide-num">01 / 06 — Overview</div>
     <h1>Zero Hardcoded Credentials</h1>
-    <h2>Secure 2-Tier App with CyberArk Conjur OSS</h2>
+    <h2>Secure 2-Tier Application with CyberArk Conjur OSS on GKE</h2>
+
     <p>
-      This demo shows how to deploy a production-grade application on Kubernetes
-      where <strong>no password ever appears in source code, manifests, or environment variables.</strong>
+      A production-grade Kubernetes deployment where <strong>no database password
+      ever appears in source code, manifests, environment variables, or container images.</strong>
+      Credentials are fetched at runtime by the workload identity itself.
     </p>
-    <div class="grid">
-      <div class="box">
-        <h4>Stack</h4>
-        <p>GKE · Conjur OSS · Flask · MySQL 8 · NGINX Ingress</p>
+
+    <div class="grid-4">
+      <div class="box box-green">
+        <h4>Secret Store</h4>
+        <p>CyberArk Conjur OSS — the single source of truth for all credentials</p>
       </div>
       <div class="box">
-        <h4>Auth method</h4>
-        <p>Kubernetes JWT authenticator — pod identity is the credential</p>
+        <h4>Authentication</h4>
+        <p>Kubernetes JWT — pod service account token IS the credential</p>
       </div>
-      <div class="box">
-        <h4>Secret delivery</h4>
-        <p>CyberArk Secrets Provider sidecar (Push-to-File pattern)</p>
+      <div class="box box-orange">
+        <h4>Secret Delivery</h4>
+        <p>Secrets Provider sidecar writes a secrets.env to a shared memory volume</p>
       </div>
-      <div class="box">
-        <h4>k8s Secrets for credentials</h4>
-        <p><span class="tag red">Zero</span> — all DB passwords live in Conjur</p>
+      <div class="box box-purple">
+        <h4>k8s Secrets for DB</h4>
+        <p><span class="tag tag-red">Zero</span> — MySQL passwords live only in Conjur</p>
       </div>
     </div>
+
     <div class="links">
       <a href="/app" class="link-btn">Open Incident Tracker</a>
-      <a href="/ui" class="link-btn outline">Open Conjur UI</a>
+      <a href="/ui" class="link-btn outline">Open Conjur Admin UI</a>
     </div>
   </div>
 
-  <!-- Slide 2: Architecture -->
-  <div class="slide">
-    <div class="slide-num">02 / 05</div>
-    <h2>Architecture Overview</h2>
-    <pre>
-Internet
-  └── NGINX Ingress (single external IP)
-        ├── /app          → Incident Tracker (Flask)
-        ├── /ui           → Conjur Admin UI (Flask)
-        ├── /presentation → This page (nginx)
-        └── /monitoring   → Grafana
+  <!-- ─────────────────────────────────────────────────────── SLIDE 2 -->
+  <div class="slide slide-2">
+    <div class="slide-num">02 / 06 — Architecture Overview</div>
+    <h1>System Architecture</h1>
+    <h2>All components and how they interact</h2>
 
-securetask namespace          conjur namespace
-┌─────────────────────┐      ┌──────────────────────┐
-│ webapp pod          │      │ Conjur OSS            │
-│  ├── init: sidecar  │─JWT→ │  └── PostgreSQL       │
-│  └── Flask app      │      │                       │
-│                     │      │ conjur-ui pod         │
-│ mysql pod           │      │  ├── init: sidecar    │
-│  ├── init: sidecar  │─JWT→ │  └── Flask UI         │
-│  └── MySQL 8        │      └──────────────────────┘
-└─────────────────────┘
-    </pre>
-    <p>
-      Both pods authenticate to Conjur using their Kubernetes service account JWT.
-      Conjur validates the JWT against the GKE OIDC issuer, checks the pod identity,
-      and returns the secrets. No service account keys, no API keys, no passwords in manifests.
-    </p>
+    <div class="arch">
+<span class="hl">Internet</span>
+  └── <span class="grn">NGINX Ingress Controller</span>  (single external IP)
+        ├── <span class="hl">/</span>               → Landing Page        (nginx static · securetask ns)
+        ├── <span class="hl">/app</span>            → Incident Tracker    (Flask + MySQL · securetask ns)
+        ├── <span class="hl">/ui</span>             → Conjur Admin UI     (Flask · conjur ns)
+        └── <span class="hl">/presentation/</span>  → Architecture Slides (nginx static · securetask ns)
+
+<span class="org">securetask namespace</span>                    <span class="pur">conjur namespace</span>
+┌─────────────────────────────┐         ┌──────────────────────────────┐
+│  <span class="org">webapp pod</span>                   │         │  <span class="pur">Conjur OSS</span>                   │
+│   ├─ init: secrets-provider ├──JWT───▶│   └─ PostgreSQL (internal)   │
+│   └─ Flask app (gunicorn)   │◀─env────│                              │
+│                             │         │  <span class="pur">conjur-ui pod</span>                │
+│  <span class="org">mysql pod</span>                    │         │   ├─ init: secrets-provider ──JWT▶│
+│   ├─ init: secrets-provider ├──JWT───▶│   └─ Flask admin UI          │
+│   └─ MySQL 8.0              │         └──────────────────────────────┘
+└─────────────────────────────┘
+    </div>
+
+    <div class="grid-2">
+      <div class="box">
+        <h4>securetask namespace</h4>
+        <p>
+          Hosts the application workloads: Incident Tracker (Flask), MySQL 8,
+          and the nginx static server (landing + presentation).
+          Service account <code>webapp</code> is permitted to read DB credentials from Conjur.
+        </p>
+      </div>
+      <div class="box box-purple">
+        <h4>conjur namespace</h4>
+        <p>
+          Hosts Conjur OSS (backed by PostgreSQL) and the Admin UI.
+          Conjur is cluster-internal only — never exposed externally.
+          Service account <code>conjur-ui</code> is permitted to read the same secrets.
+        </p>
+      </div>
+    </div>
   </div>
 
-  <!-- Slide 3: JWT Auth flow -->
-  <div class="slide">
-    <div class="slide-num">03 / 05</div>
-    <h2>Authentication with Conjur</h2>
-    <p>The Secrets Provider sidecar handles the entire auth flow transparently:</p>
+  <!-- ─────────────────────────────────────────────────────── SLIDE 3 -->
+  <div class="slide slide-3">
+    <div class="slide-num">03 / 06 — Conjur OSS Installation &amp; JWT Authentication Flow</div>
+    <h1>Installation &amp; Authentication</h1>
+    <h2>How Conjur is installed and how pods authenticate</h2>
+
+    <h3>Installation (automated via GitHub Actions)</h3>
+    <div class="grid-2">
+      <div class="box">
+        <h4>1 — NGINX Ingress</h4>
+        <p>Installed via Helm with a LoadBalancer service. Provides the single external IP for all routes.</p>
+      </div>
+      <div class="box box-green">
+        <h4>2 — Conjur OSS via Helm</h4>
+        <p>
+          Deployed to the <code>conjur</code> namespace with:<br>
+          • <code>authn,authn-jwt/k8s-cluster</code> authenticators enabled<br>
+          • A random 256-bit data encryption key stored as a k8s Secret<br>
+          • ClusterIP service — no external access
+        </p>
+      </div>
+      <div class="box box-orange">
+        <h4>3 — Account initialisation</h4>
+        <p>
+          <code>conjurctl account create</code> runs once inside the pod.
+          Admin API key is captured and stored as <code>conjur-admin-api-key</code> Secret.
+        </p>
+      </div>
+      <div class="box">
+        <h4>4 — TLS cert distribution</h4>
+        <p>
+          The Conjur self-signed TLS cert is extracted and stored as
+          <code>conjur-ssl-cert</code> in the <code>securetask</code> namespace
+          so the sidecar can verify the Conjur endpoint.
+        </p>
+      </div>
+    </div>
+
+    <h3>JWT Authentication Flow (per pod startup)</h3>
     <div class="flow">
       <div class="step">
         <div class="step-num">1</div>
-        <div class="step-text">
-          <strong>Pod starts</strong> — Kubernetes automatically mounts a signed JWT at
-          <code>/var/run/secrets/kubernetes.io/serviceaccount/token</code>
+        <div class="step-body">
+          <strong>Kubernetes mounts a signed JWT</strong>
+          <span>Every pod automatically receives a service account token at
+          <code>/var/run/secrets/kubernetes.io/serviceaccount/token</code>.
+          This token is the pod's cryptographic identity — no password needed.</span>
         </div>
       </div>
       <div class="step">
         <div class="step-num">2</div>
-        <div class="step-text">
-          <strong>Sidecar POSTs JWT</strong> to Conjur:
-          <code>POST /authn-jwt/k8s-cluster/myConjurAccount/host%2Fmyapp%2Fwebapp/authenticate</code>
+        <div class="step-body">
+          <strong>Secrets Provider sidecar authenticates to Conjur</strong>
+          <span>The sidecar POSTs the JWT to Conjur's authn-jwt endpoint:
+          <code>POST /authn-jwt/k8s-cluster/myConjurAccount/host%2Fmyapp%2Fwebapp/authenticate</code></span>
         </div>
       </div>
       <div class="step">
         <div class="step-num">3</div>
-        <div class="step-text">
-          <strong>Conjur validates</strong> the JWT signature against GKE's OIDC JWKS endpoint,
-          checks the namespace and service account annotations match the policy
+        <div class="step-body">
+          <strong>Conjur validates the JWT against GKE's OIDC JWKS</strong>
+          <span>Conjur calls GKE's JWKS endpoint to verify the token signature,
+          then checks the policy: is this service account in the correct namespace
+          with the correct annotations? If yes — access granted.</span>
         </div>
       </div>
       <div class="step">
         <div class="step-num">4</div>
-        <div class="step-text">
-          <strong>Conjur returns secrets</strong> — sidecar writes
-          <code>/conjur/secrets/secrets.env</code> to a shared in-memory volume
+        <div class="step-body">
+          <strong>Secrets written to a shared in-memory volume</strong>
+          <span>Conjur returns the permitted secrets. The sidecar writes
+          <code>/conjur/secrets/secrets.env</code> to a shared <code>emptyDir</code> volume.
+          The main container reads this file — never an environment variable, never a k8s Secret.</span>
         </div>
       </div>
       <div class="step">
         <div class="step-num">5</div>
-        <div class="step-text">
-          <strong>App reads secrets.env</strong> — connects to MySQL.
-          The password never appears anywhere else.
+        <div class="step-body">
+          <strong>Application starts with credentials in memory</strong>
+          <span>Flask reads <code>secrets.env</code>, connects to MySQL, and starts serving.
+          Credentials exist only in process memory — never on disk, never in logs.</span>
         </div>
       </div>
     </div>
-    <table>
-      <tr><th>Credential</th><th>Stored in</th><th>App sees it as</th></tr>
-      <tr><td>DB password</td><td>Conjur variable <code>myapp/database/password</code></td><td>File: <code>/conjur/secrets/secrets.env</code></td></tr>
-      <tr><td>DB root password</td><td>Conjur variable <code>myapp/database/root-password</code></td><td>File: <code>/mysql-secrets/root-password</code></td></tr>
-      <tr><td>Admin API key</td><td>k8s secret <code>conjur/conjur-admin-api-key</code></td><td>CI/CD only</td></tr>
-    </table>
   </div>
 
-  <!-- Slide 4: Challenges -->
-  <div class="slide">
-    <div class="slide-num">04 / 05</div>
-    <h2>Challenges &amp; Trade-offs</h2>
-    <div class="grid">
+  <!-- ─────────────────────────────────────────────────────── SLIDE 4 -->
+  <div class="slide slide-4">
+    <div class="slide-num">04 / 06 — Conjur Configuration</div>
+    <h1>Conjur Configuration</h1>
+    <h2>Policies, variables, and identity-based access control</h2>
+
+    <h3>Policy Structure (3 files, loaded via pipeline)</h3>
+    <div class="grid-3">
       <div class="box">
-        <h4>Challenge: JWT claim format</h4>
+        <h4>root.yml</h4>
+        <p>Top-level branches: creates <code>myapp</code> policy namespace, loads child policies, grants the authn-jwt webservice.</p>
+      </div>
+      <div class="box box-orange">
+        <h4>database.yml</h4>
         <p>
-          GKE JWTs nest service account info under <code>kubernetes.io</code>.
-          Conjur's <code>token-app-property</code> only reads top-level claims.
-          Solution: use URL-based identity (host in the request URL) instead of JWT claim extraction.
+          Declares all secrets under <code>myapp/database/</code>:
+          host, port, user, name, password, root-password.<br>
+          Declares host identities for <code>webapp</code> and <code>conjur-ui</code>.<br>
+          Grants read permits per identity.
         </p>
       </div>
-      <div class="box">
-        <h4>Challenge: Self-signed cert</h4>
+      <div class="box box-purple">
+        <h4>authn-jwt.yml</h4>
         <p>
-          Conjur uses a self-signed cert in-cluster. The sidecar needs the cert injected
-          as a k8s secret. On cluster migrations the old cert must be refreshed — handled
-          automatically by the Seed workflow.
-        </p>
-      </div>
-      <div class="box">
-        <h4>Challenge: MySQL init chicken-and-egg</h4>
-        <p>
-          MySQL needs the root password at startup before Conjur can deliver it.
-          Solution: Secrets Provider init container + <code>MYSQL_ROOT_PASSWORD_FILE</code>
-          env var — MySQL reads from a file, not an env var.
-        </p>
-      </div>
-      <div class="box">
-        <h4>Trade-off: Sidecar complexity</h4>
-        <p>
-          The Push-to-File sidecar pattern adds an init container to every pod.
-          Benefit: zero Conjur SDK in application code. The app just reads a file.
-          <code>db.py</code> is 60 lines with no Conjur dependency.
+          Configures the <code>authn-jwt/k8s-cluster</code> webservice.<br>
+          Sets JWKS URL (GKE OIDC endpoint), token TTL, issuer, and audience.<br>
+          Binds host identity to k8s namespace + service account.
         </p>
       </div>
     </div>
+
+    <h3>Variable Permissions</h3>
+    <table>
+      <tr><th>Variable</th><th>Path</th><th>webapp</th><th>conjur-ui</th></tr>
+      <tr><td>DB host / port / user / name</td><td><code>myapp/database/*</code></td><td class="check">✓</td><td class="check">✓</td></tr>
+      <tr><td>DB app password</td><td><code>myapp/database/password</code></td><td class="check">✓</td><td class="check">✓</td></tr>
+      <tr><td>DB root password</td><td><code>myapp/database/root-password</code></td><td class="check">✓</td><td class="cross">✗</td></tr>
+      <tr><td>JWT JWKS / issuer / audience</td><td><code>conjur/authn-jwt/k8s-cluster/*</code></td><td class="cross">✗</td><td class="cross">✗</td></tr>
+    </table>
+
+    <h3>Host Identity Binding</h3>
+    <pre>- !host myapp/webapp
+  annotations:
+    authn-jwt/k8s-cluster/kubernetes.io/namespace: securetask
+    authn-jwt/k8s-cluster/kubernetes.io/serviceaccount: webapp</pre>
+    <p>
+      The JWT claim <code>kubernetes.io/serviceaccount</code> must match exactly.
+      No wildcard, no shared identity — every workload has its own host entry.
+    </p>
   </div>
 
-  <!-- Slide 5: Security posture -->
-  <div class="slide">
-    <div class="slide-num">05 / 05</div>
-    <h2>Security Posture</h2>
+  <!-- ─────────────────────────────────────────────────────── SLIDE 5 -->
+  <div class="slide slide-5">
+    <div class="slide-num">05 / 06 — CI/CD Pipelines</div>
+    <h1>DevSecOps Pipelines</h1>
+    <h2>Security is gated at every stage — nothing reaches production unscanned</h2>
+
+    <h3>CI — Pull Request Gate</h3>
+    <div class="pipeline">
+      <div class="pipe-stage">
+        <div class="pipe-icon">🔍</div>
+        <div class="pipe-label">Lint</div>
+        <div class="pipe-sub">flake8 Python style</div>
+      </div>
+      <div class="pipe-stage">
+        <div class="pipe-icon">🛡️</div>
+        <div class="pipe-label">SAST</div>
+        <div class="pipe-sub">Semgrep security rules</div>
+      </div>
+      <div class="pipe-stage">
+        <div class="pipe-icon">📦</div>
+        <div class="pipe-label">OCV</div>
+        <div class="pipe-sub">pip-audit CVE check</div>
+      </div>
+    </div>
+
+    <h3>CD — Push to main</h3>
+    <div class="pipeline">
+      <div class="pipe-stage">
+        <div class="pipe-icon">🔨</div>
+        <div class="pipe-label">Build</div>
+        <div class="pipe-sub">Docker (webapp + conjur-ui)</div>
+      </div>
+      <div class="pipe-stage">
+        <div class="pipe-icon">🔬</div>
+        <div class="pipe-label">Trivy</div>
+        <div class="pipe-sub">HIGH/CRIT CVEs — blocks push</div>
+      </div>
+      <div class="pipe-stage">
+        <div class="pipe-icon">📋</div>
+        <div class="pipe-label">SBOM</div>
+        <div class="pipe-sub">SPDX JSON artifact per image</div>
+      </div>
+      <div class="pipe-stage">
+        <div class="pipe-icon">🚀</div>
+        <div class="pipe-label">Push</div>
+        <div class="pipe-sub">GHCR with SHA tag</div>
+      </div>
+      <div class="pipe-stage">
+        <div class="pipe-icon">☸️</div>
+        <div class="pipe-label">Deploy</div>
+        <div class="pipe-sub">kubectl apply (prod gate)</div>
+      </div>
+      <div class="pipe-stage">
+        <div class="pipe-icon">⚡</div>
+        <div class="pipe-label">Smoke</div>
+        <div class="pipe-sub">/healthz check</div>
+      </div>
+      <div class="pipe-stage">
+        <div class="pipe-icon">🕷️</div>
+        <div class="pipe-label">DAST</div>
+        <div class="pipe-sub">OWASP ZAP → SARIF</div>
+      </div>
+    </div>
+
+    <h3>Manual Workflows (Cluster Lifecycle)</h3>
+    <div class="grid-2">
+      <div class="box box-green">
+        <h4>conjur-install.yml</h4>
+        <p>Run once on a fresh cluster. Installs NGINX Ingress + Conjur OSS via Helm,
+        initialises the account, stores the admin key, distributes the TLS cert.</p>
+      </div>
+      <div class="box box-orange">
+        <h4>conjur-seed.yml</h4>
+        <p>Loads all 3 policy files via Conjur CLI, then writes all database secrets.
+        Idempotent — safe to re-run. Root password is generated once and never rotated automatically.</p>
+      </div>
+    </div>
+
+    <h3>SBOM — Software Bill of Materials</h3>
+    <p>
+      Every CD run generates two <strong>SPDX JSON</strong> files (one per image) listing every OS package
+      and Python dependency with its version and license.
+      Downloadable from the Actions artifacts panel. Enables instant CVE impact assessment
+      when a new vulnerability is disclosed — without rescanning.
+    </p>
+  </div>
+
+  <!-- ─────────────────────────────────────────────────────── SLIDE 6 -->
+  <div class="slide slide-6">
+    <div class="slide-num">06 / 06 — Security Posture &amp; Roadmap</div>
+    <h1>Security Measures &amp; What to Improve</h1>
+    <h2>Current controls and honest gaps</h2>
+
+    <h3>Security Controls in Place</h3>
     <table>
-      <tr><th>Control</th><th>Status</th><th>Detail</th></tr>
-      <tr><td>No hardcoded credentials</td><td class="check">✓</td><td>All secrets in Conjur</td></tr>
-      <tr><td>No k8s Secrets for DB passwords</td><td class="check">✓</td><td>Fetched at pod startup via JWT</td></tr>
-      <tr><td>Non-root containers</td><td class="check">✓</td><td>runAsUser: 10001 / 65534</td></tr>
-      <tr><td>Read-only filesystem</td><td class="check">✓</td><td>webapp container</td></tr>
-      <tr><td>Dropped Linux capabilities</td><td class="check">✓</td><td>ALL capabilities dropped</td></tr>
-      <tr><td>Network policies</td><td class="check">✓</td><td>Default deny, allow only required paths</td></tr>
-      <tr><td>CSRF protection</td><td class="check">✓</td><td>Flask-WTF on all POST endpoints</td></tr>
-      <tr><td>Input validation</td><td class="check">✓</td><td>Severity enum, length limits</td></tr>
-      <tr><td>SAST in CI</td><td class="check">✓</td><td>Bandit + Semgrep OWASP rules</td></tr>
-      <tr><td>Container scanning</td><td class="check">✓</td><td>Trivy HIGH+CRITICAL in CD</td></tr>
-      <tr><td>DAST in CD</td><td class="check">✓</td><td>OWASP ZAP baseline scan</td></tr>
-      <tr><td>Audit logging</td><td class="check">✓</td><td>Every Conjur access logged</td></tr>
+      <tr><th>Control</th><th>Tool / Method</th><th>Coverage</th></tr>
+      <tr><td>Secret management</td><td>CyberArk Conjur OSS</td><td class="check">All DB credentials</td></tr>
+      <tr><td>Workload identity</td><td>Kubernetes JWT authn-jwt</td><td class="check">No static API keys</td></tr>
+      <tr><td>Secret delivery</td><td>Secrets Provider sidecar (Push-to-File)</td><td class="check">No k8s Secrets for creds</td></tr>
+      <tr><td>Container scanning</td><td>Trivy — HIGH/CRITICAL gate</td><td class="check">Both images, every build</td></tr>
+      <tr><td>SAST</td><td>Semgrep Python security rules</td><td class="check">On every PR</td></tr>
+      <tr><td>Dependency CVE</td><td>pip-audit (OCV)</td><td class="check">On every PR</td></tr>
+      <tr><td>DAST</td><td>OWASP ZAP baseline</td><td class="check">On every deploy</td></tr>
+      <tr><td>SBOM</td><td>Syft / anchore-sbom-action (SPDX)</td><td class="check">Both images, every build</td></tr>
+      <tr><td>CSRF protection</td><td>Flask-WTF tokens</td><td class="check">All state-changing routes</td></tr>
+      <tr><td>Non-root containers</td><td>securityContext + dedicated user</td><td class="check">All pods</td></tr>
     </table>
+
+    <h3>What to Improve</h3>
+
+    <div class="improve-item">
+      <div class="improve-icon">🔄</div>
+      <div class="improve-body">
+        <h4>Secret rotation</h4>
+        <p>Conjur holds the credentials but rotation is still manual. Add automated rotation using Conjur's rotation providers or a CronJob that updates the Conjur variable and triggers a rolling restart of the affected pods.</p>
+      </div>
+    </div>
+
+    <div class="improve-item">
+      <div class="improve-icon">🔐</div>
+      <div class="improve-body">
+        <h4>TLS end-to-end</h4>
+        <p>Current setup uses plain HTTP from the ingress to pods. Add cert-manager + Let's Encrypt (or GCP-managed TLS) to terminate HTTPS at the ingress and use TLS internally for MySQL connections.</p>
+      </div>
+    </div>
+
+    <div class="improve-item">
+      <div class="improve-icon">🔑</div>
+      <div class="improve-body">
+        <h4>Workload Identity Federation (no kubeconfig secret)</h4>
+        <p>The CD pipeline uses a <code>KUBECONFIG_B64</code> GitHub secret. Replace with GCP Workload Identity Federation so GitHub Actions authenticates directly via OIDC — no static credentials in GitHub Secrets at all.</p>
+      </div>
+    </div>
+
+    <div class="improve-item">
+      <div class="improve-icon">📊</div>
+      <div class="improve-body">
+        <h4>Observability</h4>
+        <p>No centralised metrics or alerting. Add Prometheus + Grafana (or GCP Cloud Monitoring) with alerts on Conjur authentication failures, secret fetch errors, and pod restart counts.</p>
+      </div>
+    </div>
+
+    <div class="improve-item">
+      <div class="improve-icon">🏛️</div>
+      <div class="improve-body">
+        <h4>Policy as Code governance</h4>
+        <p>Conjur policy changes currently require manual review. Implement OPA/Gatekeeper admission policies and require a two-person approval workflow for any change to Conjur access policies via PR review gates.</p>
+      </div>
+    </div>
+
     <div class="links">
-      <a href="/ui/audit" class="link-btn">View Live Audit Log</a>
-      <a href="/monitoring" class="link-btn outline">View Metrics</a>
+      <a href="/app" class="link-btn">Open Incident Tracker</a>
+      <a href="/ui" class="link-btn outline">Open Conjur UI</a>
+      <a href="/" class="link-btn outline">Back to Home</a>
     </div>
   </div>
 
