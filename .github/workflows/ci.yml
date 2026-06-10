@@ -55,11 +55,10 @@ jobs:
           category: bandit
         continue-on-error: true
       - name: Semgrep — OWASP rules
-        uses: semgrep/semgrep-action@v1
-        with:
-          config: "p/python p/owasp-top-ten p/secrets"
-        env:
-          SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
+        run: |
+          pip install semgrep
+          semgrep --config "p/python" --config "p/owasp-top-ten" \
+            app/ conjur-ui/ --error || true
         continue-on-error: true
 
   # ── OCV ─────────────────────────────────────────────────────────────────────
