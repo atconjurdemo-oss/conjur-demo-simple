@@ -34,11 +34,12 @@ spec:
             capabilities:
               drop: ["ALL"]
           volumeMounts:
+            - name: landing-html
+              mountPath: /usr/share/nginx/html/index.html
+              subPath: index.html
+              readOnly: true
             - name: html
               mountPath: /usr/share/nginx/html/presentation
-              readOnly: true
-            - name: landing-html
-              mountPath: /usr/share/nginx/html/landing
               readOnly: true
             - name: nginx-conf
               mountPath: /etc/nginx/conf.d
@@ -63,6 +64,9 @@ spec:
         - name: landing-html
           configMap:
             name: landing-html
+            items:
+              - key: index.html
+                path: index.html
         - name: nginx-conf
           configMap:
             name: presentation-nginx-conf
@@ -98,17 +102,13 @@ data:
   default.conf: |
     server {
         listen 8080;
+        root /usr/share/nginx/html;
 
-        # Landing page at /
         location = / {
-            root /usr/share/nginx/html/landing;
             try_files /index.html =404;
         }
 
-        # Presentation slides at /presentation
         location /presentation {
-            alias /usr/share/nginx/html/presentation;
-            index index.html;
             try_files $uri $uri/ /presentation/index.html;
         }
     }
