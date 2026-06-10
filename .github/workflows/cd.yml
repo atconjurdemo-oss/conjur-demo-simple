@@ -10,6 +10,7 @@ on:
     paths:
       - "app/**"
       - "conjur-ui/**"
+      - "landing/**"
       - "k8s/**"
       - ".github/workflows/cd.yml"
 
@@ -167,6 +168,9 @@ jobs:
         run: |
           kubectl -n securetask create configmap presentation-html \
             --from-file=index.html=presentation/index.html \
+            --dry-run=client -o yaml | kubectl apply -f -
+          kubectl -n securetask create configmap landing-html \
+            --from-file=index.html=landing/index.html \
             --dry-run=client -o yaml | kubectl apply -f -
           kubectl -n securetask delete ingress webapp --ignore-not-found
           kubectl apply -f k8s/gateway/presentation.yaml

@@ -1,4 +1,5 @@
 ---
+# App traffic — strips /app prefix before forwarding to webapp
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -20,8 +21,31 @@ spec:
                 name: webapp
                 port:
                   number: 80
-          - path: /presentation(/|$)(.*)
-            pathType: ImplementationSpecific
+
+---
+# Static traffic — no rewrite; nginx inside the presentation pod handles paths
+# / → landing page, /presentation → slide deck
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: gateway-static
+  namespace: securetask
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: nginx
+  rules:
+    - http:
+        paths:
+          - path: /presentation
+            pathType: Prefix
+            backend:
+              service:
+                name: presentation
+                port:
+                  number: 80
+          - path: /
+            pathType: Prefix
             backend:
               service:
                 name: presentation

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Incident Tracker — SecureOps</title>
+  <title>Incident Tracker — CyberArk Technical Challenge</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -15,16 +15,34 @@
     }
 
     header {
-      background: #1a1f2e;
-      border-bottom: 1px solid #2d3748;
-      padding: 16px 32px;
+      background: #161b22;
+      border-bottom: 1px solid #30363d;
+      padding: 0 32px;
+      height: 56px;
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 32px;
     }
-    header .logo { font-size: 20px; font-weight: 700; color: #63b3ed; }
-    header .sub  { font-size: 12px; color: #718096; margin-top: 2px; }
-    header .conjur-badge {
+    .header-brand {
+      font-weight: 700;
+      font-size: 15px;
+      color: #58a6ff;
+      white-space: nowrap;
+      text-decoration: none;
+    }
+    .header-brand span { color: #8b949e; font-weight: 400; }
+    .header-nav { display: flex; gap: 4px; flex: 1; }
+    .header-nav a {
+      color: #8b949e;
+      text-decoration: none;
+      font-size: 14px;
+      padding: 6px 12px;
+      border-radius: 6px;
+      transition: background 0.15s, color 0.15s;
+    }
+    .header-nav a:hover { background: #21262d; color: #e6edf3; }
+    .header-nav a.active { background: #21262d; color: #e6edf3; }
+    .header-conjur-badge {
       margin-left: auto;
       background: #1a2744;
       border: 1px solid #2b6cb0;
@@ -32,8 +50,9 @@
       padding: 4px 12px;
       font-size: 11px;
       color: #90cdf4;
+      white-space: nowrap;
     }
-    header .conjur-badge span { color: #48bb78; font-weight: 600; }
+    .header-conjur-badge span { color: #48bb78; font-weight: 600; }
 
     main { max-width: 900px; margin: 0 auto; padding: 32px 16px; }
 
@@ -146,11 +165,14 @@
 <body>
 
 <header>
-  <div>
-    <div class="logo">⚡ SecureOps</div>
-    <div class="sub">Incident Tracker</div>
-  </div>
-  <div class="conjur-badge">
+  <a class="header-brand" href="/">CyberArk Technical Challenge <span>— Conjur OSS</span></a>
+  <nav class="header-nav">
+    <a href="/">Home</a>
+    <a href="/ui">Conjur UI</a>
+    <a href="/app" class="active">Incident Tracker</a>
+    <a href="/presentation">Presentation</a>
+  </nav>
+  <div class="header-conjur-badge">
     DB credentials via <span>CyberArk Conjur</span> · JWT authn
   </div>
 </header>
