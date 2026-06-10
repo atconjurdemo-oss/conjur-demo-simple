@@ -153,9 +153,9 @@ jobs:
         run: |
           kubectl apply -f k8s/conjur-ui/serviceaccount.yaml
           kubectl apply -f k8s/conjur-ui/configmap.yaml
-          kubectl -n conjur create secret generic conjur-ui-secret \
-            --from-literal=FLASK_SECRET_KEY="$(openssl rand -hex 32)" \
-            --dry-run=client -o yaml | kubectl apply -f -
+          kubectl -n conjur get secret conjur-ui-secret &>/dev/null || \
+            kubectl -n conjur create secret generic conjur-ui-secret \
+              --from-literal=FLASK_SECRET_KEY="$(openssl rand -hex 32)"
           sed "s|IMAGE_PLACEHOLDER|${GHCR_IMAGE}|g" \
             k8s/conjur-ui/deployment.yaml | kubectl apply -f -
           kubectl -n conjur rollout status deployment/conjur-ui --timeout=3m
