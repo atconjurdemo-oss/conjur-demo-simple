@@ -170,6 +170,9 @@ jobs:
           kubectl apply -f k8s/gateway/presentation.yaml
           kubectl apply -f k8s/gateway/ingress-securetask.yaml
           kubectl apply -f k8s/gateway/ingress-conjur.yaml
+          kubectl get namespace monitoring &>/dev/null && \
+            kubectl apply -f k8s/gateway/ingress-monitoring.yaml || \
+            echo "Monitoring ingress skipped — run monitoring deploy first"
           kubectl -n securetask rollout status deployment/presentation --timeout=2m
 
       - name: Smoke test
