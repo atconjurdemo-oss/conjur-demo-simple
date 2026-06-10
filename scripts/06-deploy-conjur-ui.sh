@@ -1,32 +1,39 @@
 #!/usr/bin/env bash
 # 06-deploy-conjur-ui.sh — Build and deploy the Conjur UI dashboard.
 #
-# Shows policies, variables, and live Conjur audit logs.
+# Option A — Artifact Registry (default):
+#   export PROJECT_ID=your-gcp-project
+#   export REGION=europe-west1
+#   bash scripts/06-deploy-conjur-ui.sh
 #
-# Usage:
-#   export PROJECT_ID=<gcp-project>
-#   export REGION=europe-west1   # optional
+# Option B — GHCR (pre-built by GitHub Actions):
+#   export GHCR_IMAGE=ghcr.io/<owner>/conjur-ui:latest
 #   bash scripts/06-deploy-conjur-ui.sh
 
 set -euo pipefail
 
-: "${PROJECT_ID:?Set PROJECT_ID}"
-REGION="${REGION:-europe-west1}"
-REGISTRY="${REGION}-docker.pkg.dev/${PROJECT_ID}/conjur-demo"
 TAG="$(git rev-parse --short HEAD 2>/dev/null || date +%Y%m%d%H%M)"
-IMAGE="${REGISTRY}/conjur-ui:${TAG}"
 PORT=8445
 
-echo "==> [1/4] Building and pushing Conjur UI image (${TAG})..."
-gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
-gcloud artifacts repositories create conjur-demo \
-  --repository-format=docker --location="${REGION}" 2>/dev/null || true
-
-if command -v docker &>/dev/null; then
-  docker build -t "${IMAGE}" conjur-ui/
-  docker push "${IMAGE}"
+# ── Determine image ───────────────────────────────────────────────────────────
+if [ -n "${GHCR_IMAGE:-}" ]; then
+  IMAGE="${GHCR_IMAGE}"
+  echo "==> Using pre-built GHCR image: ${IMAGE}"
 else
-  gcloud builds submit conjur-ui/ --tag "${IMAGE}" --project "${PROJECT_ID}"
+  : "${PROJECT_ID:?Set PROJECT_ID or GHCR_IMAGE}"
+  REGION="${REGION:-europe-west1}"
+  REGISTRY="${REGION}-docker.pkg.dev/${PROJECT_ID}/conjur-demo"
+  IMAGE="${REGISTRY}/conjur-ui:${TAG}"
+  echo "==> [1/4] Building and pushing Conjur UI image (${TAG})..."
+  gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+  gcloud artifacts repositories create conjur-demo \
+    --repository-format=docker --location="${REGION}" 2>/dev/null || true
+  if command -v docker &>/dev/null; then
+    docker build -t "${IMAGE}" conjur-ui/
+    docker push "${IMAGE}"
+  else
+    gcloud builds submit conjur-ui/ --tag "${IMAGE}" --project "${PROJECT_ID}"
+  fi
 fi
 
 echo "==> [2/4] Granting conjur-ui host permissions in Conjur..."
