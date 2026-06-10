@@ -1,0 +1,53 @@
+---
+# Gateway Ingress — all services under one external IP.
+#
+# Routes:
+#   /app          → webapp (Incident Tracker)       [securetask ns]
+#   /ui           → conjur-ui (Admin Dashboard)      [conjur ns via proxy]
+#   /presentation → presentation (static slides)     [securetask ns]
+#   /monitoring   → grafana (metrics dashboard)      [monitoring ns via proxy]
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: gateway
+  namespace: securetask
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: nginx
+  rules:
+    - http:
+        paths:
+          - path: /app(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: webapp
+                port:
+                  number: 80
+
+          - path: /ui(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: conjur-ui-proxy
+                port:
+                  number: 80
+
+          - path: /presentation(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: presentation
+                port:
+                  number: 80
+
+          - path: /monitoring(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: grafana-proxy
+                port:
+                  number: 80

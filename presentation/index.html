@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Conjur Demo — Architecture</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0f1117; color: #e2e8f0; min-height: 100vh;
+    }
+    nav {
+      background: #1a1f2e; border-bottom: 1px solid #2d3748;
+      padding: 12px 32px; display: flex; align-items: center; gap: 24px;
+    }
+    nav .logo { font-weight: 700; color: #63b3ed; font-size: 16px; }
+    nav a {
+      color: #a0aec0; text-decoration: none; font-size: 14px; padding: 6px 12px;
+      border-radius: 6px; transition: background 0.15s;
+    }
+    nav a:hover, nav a.active { background: #2d3748; color: #e2e8f0; }
+    .slides { max-width: 960px; margin: 0 auto; padding: 32px 16px; }
+    .slide {
+      background: #1a1f2e; border: 1px solid #2d3748; border-radius: 12px;
+      padding: 40px; margin-bottom: 32px;
+    }
+    .slide-num {
+      font-size: 11px; color: #4a5568; text-transform: uppercase;
+      letter-spacing: 0.1em; margin-bottom: 8px;
+    }
+    h1 { font-size: 28px; color: #63b3ed; margin-bottom: 8px; }
+    h2 { font-size: 22px; color: #90cdf4; margin-bottom: 16px; }
+    h3 { font-size: 16px; color: #a0aec0; margin: 20px 0 8px; }
+    p  { color: #a0aec0; line-height: 1.7; margin-bottom: 12px; }
+    .tag {
+      display: inline-block; background: #2d3748; color: #90cdf4;
+      border-radius: 4px; padding: 2px 8px; font-size: 12px; margin: 2px;
+    }
+    .tag.green { color: #68d391; }
+    .tag.red   { color: #fc8181; }
+    pre {
+      background: #0f1117; border: 1px solid #2d3748; border-radius: 8px;
+      padding: 16px; font-size: 13px; color: #9cdcfe; overflow-x: auto;
+      margin: 12px 0;
+    }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
+    .box {
+      background: #0f1117; border: 1px solid #2d3748; border-radius: 8px;
+      padding: 16px;
+    }
+    .box h4 { color: #63b3ed; font-size: 14px; margin-bottom: 8px; }
+    .box p  { font-size: 13px; color: #718096; margin: 0; }
+    .flow {
+      display: flex; flex-direction: column; gap: 8px; margin: 16px 0;
+    }
+    .step {
+      display: flex; align-items: flex-start; gap: 12px;
+    }
+    .step-num {
+      background: #2b6cb0; color: #fff; border-radius: 50%;
+      width: 24px; height: 24px; display: flex; align-items: center;
+      justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0;
+    }
+    .step-text { color: #a0aec0; font-size: 14px; line-height: 1.6; }
+    .step-text strong { color: #e2e8f0; }
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+    th { text-align: left; color: #718096; font-size: 12px; text-transform: uppercase;
+         letter-spacing: 0.05em; padding: 8px 12px; border-bottom: 1px solid #2d3748; }
+    td { padding: 10px 12px; border-bottom: 1px solid #1a1f2e; font-size: 14px; color: #a0aec0; }
+    td:first-child { color: #e2e8f0; font-weight: 500; }
+    .check { color: #68d391; }
+    .cross { color: #fc8181; }
+    .links { display: flex; gap: 12px; margin-top: 24px; flex-wrap: wrap; }
+    .link-btn {
+      background: #2b6cb0; color: #fff; text-decoration: none;
+      padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 600;
+    }
+    .link-btn.outline {
+      background: transparent; border: 1px solid #2b6cb0; color: #90cdf4;
+    }
+  </style>
+</head>
+<body>
+
+<nav>
+  <div class="logo">⚡ SecureOps Demo</div>
+  <a href="/app">Incident Tracker</a>
+  <a href="/ui">Conjur UI</a>
+  <a href="/presentation" class="active">Presentation</a>
+  <a href="/monitoring">Monitoring</a>
+</nav>
+
+<div class="slides">
+
+  <!-- Slide 1: Overview -->
+  <div class="slide">
+    <div class="slide-num">01 / 05</div>
+    <h1>Zero Hardcoded Credentials</h1>
+    <h2>Secure 2-Tier App with CyberArk Conjur OSS</h2>
+    <p>
+      This demo shows how to deploy a production-grade application on Kubernetes
+      where <strong>no password ever appears in source code, manifests, or environment variables.</strong>
+    </p>
+    <div class="grid">
+      <div class="box">
+        <h4>Stack</h4>
+        <p>GKE · Conjur OSS · Flask · MySQL 8 · NGINX Ingress</p>
+      </div>
+      <div class="box">
+        <h4>Auth method</h4>
+        <p>Kubernetes JWT authenticator — pod identity is the credential</p>
+      </div>
+      <div class="box">
+        <h4>Secret delivery</h4>
+        <p>CyberArk Secrets Provider sidecar (Push-to-File pattern)</p>
+      </div>
+      <div class="box">
+        <h4>k8s Secrets for credentials</h4>
+        <p><span class="tag red">Zero</span> — all DB passwords live in Conjur</p>
+      </div>
+    </div>
+    <div class="links">
+      <a href="/app" class="link-btn">Open Incident Tracker</a>
+      <a href="/ui" class="link-btn outline">Open Conjur UI</a>
+    </div>
+  </div>
+
+  <!-- Slide 2: Architecture -->
+  <div class="slide">
+    <div class="slide-num">02 / 05</div>
+    <h2>Architecture Overview</h2>
+    <pre>
+Internet
+  └── NGINX Ingress (single external IP)
+        ├── /app          → Incident Tracker (Flask)
+        ├── /ui           → Conjur Admin UI (Flask)
+        ├── /presentation → This page (nginx)
+        └── /monitoring   → Grafana
+
+securetask namespace          conjur namespace
+┌─────────────────────┐      ┌──────────────────────┐
+│ webapp pod          │      │ Conjur OSS            │
+│  ├── init: sidecar  │─JWT→ │  └── PostgreSQL       │
+│  └── Flask app      │      │                       │
+│                     │      │ conjur-ui pod         │
+│ mysql pod           │      │  ├── init: sidecar    │
+│  ├── init: sidecar  │─JWT→ │  └── Flask UI         │
+│  └── MySQL 8        │      └──────────────────────┘
+└─────────────────────┘
+    </pre>
+    <p>
+      Both pods authenticate to Conjur using their Kubernetes service account JWT.
+      Conjur validates the JWT against the GKE OIDC issuer, checks the pod identity,
+      and returns the secrets. No service account keys, no API keys, no passwords in manifests.
+    </p>
+  </div>
+
+  <!-- Slide 3: JWT Auth flow -->
+  <div class="slide">
+    <div class="slide-num">03 / 05</div>
+    <h2>Authentication with Conjur</h2>
+    <p>The Secrets Provider sidecar handles the entire auth flow transparently:</p>
+    <div class="flow">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-text">
+          <strong>Pod starts</strong> — Kubernetes automatically mounts a signed JWT at
+          <code>/var/run/secrets/kubernetes.io/serviceaccount/token</code>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-text">
+          <strong>Sidecar POSTs JWT</strong> to Conjur:
+          <code>POST /authn-jwt/k8s-cluster/myConjurAccount/host%2Fmyapp%2Fwebapp/authenticate</code>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-text">
+          <strong>Conjur validates</strong> the JWT signature against GKE's OIDC JWKS endpoint,
+          checks the namespace and service account annotations match the policy
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-text">
+          <strong>Conjur returns secrets</strong> — sidecar writes
+          <code>/conjur/secrets/secrets.env</code> to a shared in-memory volume
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">5</div>
+        <div class="step-text">
+          <strong>App reads secrets.env</strong> — connects to MySQL.
+          The password never appears anywhere else.
+        </div>
+      </div>
+    </div>
+    <table>
+      <tr><th>Credential</th><th>Stored in</th><th>App sees it as</th></tr>
+      <tr><td>DB password</td><td>Conjur variable <code>myapp/database/password</code></td><td>File: <code>/conjur/secrets/secrets.env</code></td></tr>
+      <tr><td>DB root password</td><td>Conjur variable <code>myapp/database/root-password</code></td><td>File: <code>/mysql-secrets/root-password</code></td></tr>
+      <tr><td>Admin API key</td><td>k8s secret <code>conjur/conjur-admin-api-key</code></td><td>CI/CD only</td></tr>
+    </table>
+  </div>
+
+  <!-- Slide 4: Challenges -->
+  <div class="slide">
+    <div class="slide-num">04 / 05</div>
+    <h2>Challenges &amp; Trade-offs</h2>
+    <div class="grid">
+      <div class="box">
+        <h4>Challenge: JWT claim format</h4>
+        <p>
+          GKE JWTs nest service account info under <code>kubernetes.io</code>.
+          Conjur's <code>token-app-property</code> only reads top-level claims.
+          Solution: use URL-based identity (host in the request URL) instead of JWT claim extraction.
+        </p>
+      </div>
+      <div class="box">
+        <h4>Challenge: Self-signed cert</h4>
+        <p>
+          Conjur uses a self-signed cert in-cluster. The sidecar needs the cert injected
+          as a k8s secret. On cluster migrations the old cert must be refreshed — handled
+          automatically by the Seed workflow.
+        </p>
+      </div>
+      <div class="box">
+        <h4>Challenge: MySQL init chicken-and-egg</h4>
+        <p>
+          MySQL needs the root password at startup before Conjur can deliver it.
+          Solution: Secrets Provider init container + <code>MYSQL_ROOT_PASSWORD_FILE</code>
+          env var — MySQL reads from a file, not an env var.
+        </p>
+      </div>
+      <div class="box">
+        <h4>Trade-off: Sidecar complexity</h4>
+        <p>
+          The Push-to-File sidecar pattern adds an init container to every pod.
+          Benefit: zero Conjur SDK in application code. The app just reads a file.
+          <code>db.py</code> is 60 lines with no Conjur dependency.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 5: Security posture -->
+  <div class="slide">
+    <div class="slide-num">05 / 05</div>
+    <h2>Security Posture</h2>
+    <table>
+      <tr><th>Control</th><th>Status</th><th>Detail</th></tr>
+      <tr><td>No hardcoded credentials</td><td class="check">✓</td><td>All secrets in Conjur</td></tr>
+      <tr><td>No k8s Secrets for DB passwords</td><td class="check">✓</td><td>Fetched at pod startup via JWT</td></tr>
+      <tr><td>Non-root containers</td><td class="check">✓</td><td>runAsUser: 10001 / 65534</td></tr>
+      <tr><td>Read-only filesystem</td><td class="check">✓</td><td>webapp container</td></tr>
+      <tr><td>Dropped Linux capabilities</td><td class="check">✓</td><td>ALL capabilities dropped</td></tr>
+      <tr><td>Network policies</td><td class="check">✓</td><td>Default deny, allow only required paths</td></tr>
+      <tr><td>CSRF protection</td><td class="check">✓</td><td>Flask-WTF on all POST endpoints</td></tr>
+      <tr><td>Input validation</td><td class="check">✓</td><td>Severity enum, length limits</td></tr>
+      <tr><td>SAST in CI</td><td class="check">✓</td><td>Bandit + Semgrep OWASP rules</td></tr>
+      <tr><td>Container scanning</td><td class="check">✓</td><td>Trivy HIGH+CRITICAL in CD</td></tr>
+      <tr><td>DAST in CD</td><td class="check">✓</td><td>OWASP ZAP baseline scan</td></tr>
+      <tr><td>Audit logging</td><td class="check">✓</td><td>Every Conjur access logged</td></tr>
+    </table>
+    <div class="links">
+      <a href="/ui/audit" class="link-btn">View Live Audit Log</a>
+      <a href="/monitoring" class="link-btn outline">View Metrics</a>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

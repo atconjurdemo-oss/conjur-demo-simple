@@ -161,6 +161,17 @@ jobs:
             k8s/conjur-ui/deployment.yaml | kubectl apply -f -
           kubectl -n conjur rollout status deployment/conjur-ui --timeout=3m
 
+      - name: Deploy gateway
+        run: |
+          kubectl -n securetask create configmap presentation-html \
+            --from-file=index.html=presentation/index.html \
+            --dry-run=client -o yaml | kubectl apply -f -
+          kubectl apply -f k8s/gateway/presentation.yaml
+          kubectl apply -f k8s/gateway/cross-namespace-services.yaml
+          kubectl apply -f k8s/gateway/ingress.yaml
+          kubectl -n securetask delete ingress webapp --ignore-not-found
+          kubectl -n securetask rollout status deployment/presentation --timeout=2m
+
       - name: Smoke test
         run: |
           kubectl -n securetask port-forward svc/webapp 18080:80 &
