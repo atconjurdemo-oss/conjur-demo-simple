@@ -27,10 +27,6 @@ grafana:
   grafana.ini:
     server:
       protocol: http
-      enforce_domain: false
-      enable_gzip: true
-      serve_from_sub_path: true
-      root_url: "%(protocol)s://%(domain)s/monitoring/"
   sidecar:
     dashboards:
       enabled: true
