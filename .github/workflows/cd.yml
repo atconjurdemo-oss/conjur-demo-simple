@@ -172,8 +172,8 @@ jobs:
             --from-file=index.html=landing/index.html \
             --dry-run=client -o yaml | kubectl apply -f -
           kubectl apply -f k8s/gateway/presentation.yaml
-          kubectl apply -f k8s/gateway/ingress-securetask.yaml
           kubectl apply -f k8s/gateway/ingress-conjur.yaml
+          kubectl apply -f k8s/gateway/ingress-securetask.yaml
           kubectl get namespace monitoring &>/dev/null && \
             kubectl apply -f k8s/gateway/ingress-monitoring.yaml || \
             echo "Monitoring ingress skipped — run monitoring deploy first"
