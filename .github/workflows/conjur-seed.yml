@@ -1,0 +1,124 @@
+# conjur-seed.yml — Load Conjur policies and write secrets (manual trigger).
+# Run after conjur-install.yml.
+#
+# Required secrets: KUBECONFIG_B64, DB_APP_PASSWORD
+# Required variables: CONJUR_ACCOUNT (default: myConjurAccount)
+
+name: Conjur Seed
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+env:
+  CONJUR_ACCOUNT: ${{ vars.CONJUR_ACCOUNT || 'myConjurAccount' }}
+
+jobs:
+  seed:
+    name: Seed Conjur
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure kubeconfig
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBECONFIG_B64 }}" | base64 -d > $HOME/.kube/config
+          chmod 600 $HOME/.kube/config
+
+      - name: Seed via REST API
+        run: |
+          PORT=8443
+          kubectl -n conjur port-forward svc/conjur-oss ${PORT}:443 &
+          PF_PID=$!
+          sleep 3
+          trap "kill ${PF_PID} 2>/dev/null" EXIT
+
+          ADMIN_KEY="$(kubectl -n conjur get secret conjur-admin-api-key \
+            -o jsonpath='{.data.key}' | base64 -d)"
+          echo "Admin key: ${#ADMIN_KEY} chars"
+
+          _token() {
+            printf '%s' "${ADMIN_KEY}" | curl -sSf -k \
+              -X POST "https://localhost:${PORT}/authn/${CONJUR_ACCOUNT}/admin/authenticate" \
+              -H 'Accept-Encoding: base64' --data-binary @- | tr -d '\n\r '
+          }
+          _policy() {
+            local method="$1" branch="$2" file="$3"
+            local tok; tok="$(_token)"
+            HTTP=$(curl -sk -o /tmp/pr.txt -w "%{http_code}" \
+              -X "${method}" "https://localhost:${PORT}/policies/${CONJUR_ACCOUNT}/policy/${branch}" \
+              -H "Authorization: Token token=\"${tok}\"" \
+              -H "Content-Type: application/x-yaml" --data-binary "@${file}")
+            echo "  ${method} ${branch}: HTTP ${HTTP}"
+          }
+          _set() {
+            local id="$1" val="$2" tok enc http
+            tok="$(_token)"
+            enc="$(python3 -c "import urllib.parse; print(urllib.parse.quote('${id}', safe=''))")"
+            http="$(printf '%s' "${val}" | curl -sk -o /dev/null -w "%{http_code}" \
+              -X POST "https://localhost:${PORT}/secrets/${CONJUR_ACCOUNT}/variable/${enc}" \
+              -H "Authorization: Token token=\"${tok}\"" --data-binary @-)"
+            [ "${http}" = "201" ] && echo "  set: ${id}" || echo "  WARN: ${id} HTTP ${http}"
+          }
+          _get() {
+            local id="$1" tok enc
+            tok="$(_token)"
+            enc="$(python3 -c "import urllib.parse; print(urllib.parse.quote('${id}', safe=''))")"
+            curl -sf -k "https://localhost:${PORT}/secrets/${CONJUR_ACCOUNT}/variable/${enc}" \
+              -H "Authorization: Token token=\"${tok}\"" 2>/dev/null || echo ''
+          }
+
+          echo "--- Loading policies ---"
+          python3 -c "print('- !policy\n  id: conjur')"    > /tmp/br-conjur.yml
+          python3 -c "print('- !policy\n  id: authn-jwt')" > /tmp/br-authn.yml
+          _policy POST root              /tmp/br-conjur.yml
+          _policy POST conjur            /tmp/br-authn.yml
+          _policy POST root              conjur-policy/root.yml
+          _policy PUT  myapp             conjur-policy/database.yml
+          _policy POST conjur/authn-jwt  conjur-policy/authn-jwt.yml
+
+          echo "--- Configuring JWT authenticator ---"
+          OIDC="$(kubectl get --raw /.well-known/openid-configuration)"
+          ISSUER="$(echo "${OIDC}" | python3 -c "import sys,json; print(json.load(sys.stdin)['issuer'])")"
+          _set "conjur/authn-jwt/k8s-cluster/jwks-uri" "${ISSUER}/jwks"
+          _set "conjur/authn-jwt/k8s-cluster/issuer"   "${ISSUER}"
+          _set "conjur/authn-jwt/k8s-cluster/audience" "${ISSUER}"
+
+          echo "--- Writing database secrets ---"
+          DB_APP="${{ secrets.DB_APP_PASSWORD }}"
+          [ -z "${DB_APP}" ] && { echo "ERROR: DB_APP_PASSWORD secret not set"; exit 1; }
+          EXISTING_ROOT="$(_get myapp/database/root-password)"
+          DB_ROOT="${EXISTING_ROOT:-$(openssl rand -base64 32 | tr -dc 'A-Za-z0-9' | head -c 24)}"
+          _set "myapp/database/host"          "mysql.securetask.svc.cluster.local"
+          _set "myapp/database/port"          "3306"
+          _set "myapp/database/user"          "appuser"
+          _set "myapp/database/password"      "${DB_APP}"
+          _set "myapp/database/name"          "securetask"
+          _set "myapp/database/root-password" "${DB_ROOT}"
+
+          echo "--- Refreshing conjur-ssl-cert ---"
+          CERT="$(kubectl -n conjur exec deploy/conjur-oss -c conjur-oss-nginx -- \
+            cat /opt/conjur/etc/ssl/cert/tls.crt 2>/dev/null || echo '')"
+          if [ -n "${CERT}" ]; then
+            kubectl -n securetask delete secret conjur-ssl-cert --ignore-not-found
+            kubectl -n securetask create secret generic conjur-ssl-cert \
+              --from-literal=certificate="${CERT}"
+          fi
+
+          echo "--- Verifying ---"
+          ALL_OK=true
+          for var in myapp/database/host myapp/database/user \
+                     conjur/authn-jwt/k8s-cluster/issuer; do
+            val="$(_get "${var}")"
+            [ -n "${val}" ] && echo "  [OK] ${var}" || { echo "  [FAIL] ${var}"; ALL_OK=false; }
+          done
+          ${ALL_OK} || { echo "Some secrets missing!"; exit 1; }
+
+          echo "## Conjur Seed Complete" >> $GITHUB_STEP_SUMMARY
+          echo "- Account: ${CONJUR_ACCOUNT}" >> $GITHUB_STEP_SUMMARY
+          echo "- Policies: root, myapp, conjur/authn-jwt" >> $GITHUB_STEP_SUMMARY
+          echo "- Next: Run **CD** workflow or push to main" >> $GITHUB_STEP_SUMMARY

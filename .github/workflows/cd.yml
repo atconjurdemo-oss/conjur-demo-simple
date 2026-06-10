@@ -1,0 +1,187 @@
+# cd.yml — Build, scan, push, and deploy on push to main.
+# Requires GitHub secrets: KUBECONFIG_B64
+# Requires GitHub variables: DUCKDNS_SUBDOMAIN (optional, for display only)
+
+name: CD
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "app/**"
+      - "conjur-ui/**"
+      - "k8s/**"
+      - ".github/workflows/cd.yml"
+
+permissions:
+  contents: read
+  packages: write
+  security-events: write
+
+env:
+  WEBAPP_IMAGE:   ghcr.io/${{ github.repository_owner }}/webapp
+  CONJURUI_IMAGE: ghcr.io/${{ github.repository_owner }}/conjur-ui
+
+jobs:
+  # ── Build & Scan ─────────────────────────────────────────────────────────────
+  build-scan:
+    name: Build & Scan
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.sha.outputs.sha }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get short SHA
+        id: sha
+        run: echo "sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/setup-buildx-action@v3
+
+      # ── Webapp ───────────────────────────────────────────────────────────────
+      - name: Build webapp
+        uses: docker/build-push-action@v5
+        with:
+          context: app
+          push: false
+          tags: ${{ env.WEBAPP_IMAGE }}:latest
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Scan webapp (Trivy)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref:      ${{ env.WEBAPP_IMAGE }}:latest
+          format:         table
+          exit-code:      1
+          severity:       HIGH,CRITICAL
+          ignore-unfixed: true
+
+      - name: Push webapp
+        uses: docker/build-push-action@v5
+        with:
+          context: app
+          push: true
+          tags: |
+            ${{ env.WEBAPP_IMAGE }}:latest
+            ${{ env.WEBAPP_IMAGE }}:${{ steps.sha.outputs.sha }}
+          cache-from: type=gha
+
+      # ── Conjur UI ────────────────────────────────────────────────────────────
+      - name: Build conjur-ui
+        uses: docker/build-push-action@v5
+        with:
+          context: conjur-ui
+          push: false
+          tags: ${{ env.CONJURUI_IMAGE }}:latest
+          load: true
+          cache-from: type=gha
+
+      - name: Scan conjur-ui (Trivy)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref:      ${{ env.CONJURUI_IMAGE }}:latest
+          format:         table
+          exit-code:      1
+          severity:       HIGH,CRITICAL
+          ignore-unfixed: true
+
+      - name: Push conjur-ui
+        uses: docker/build-push-action@v5
+        with:
+          context: conjur-ui
+          push: true
+          tags: |
+            ${{ env.CONJURUI_IMAGE }}:latest
+            ${{ env.CONJURUI_IMAGE }}:${{ steps.sha.outputs.sha }}
+          cache-from: type=gha
+
+  # ── Deploy ───────────────────────────────────────────────────────────────────
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    needs: build-scan
+    environment: production
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure kubeconfig
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBECONFIG_B64 }}" | base64 -d > $HOME/.kube/config
+          chmod 600 $HOME/.kube/config
+
+      - name: Verify Conjur is seeded
+        run: |
+          kubectl -n conjur get secret conjur-admin-api-key &>/dev/null || \
+            { echo "ERROR: Run scripts/02-init-account.sh first"; exit 1; }
+          kubectl -n securetask get secret conjur-ssl-cert &>/dev/null || \
+            { echo "ERROR: Run scripts/02-init-account.sh first"; exit 1; }
+          echo "Conjur ready."
+
+      - name: Deploy webapp
+        env:
+          GHCR_IMAGE: ${{ env.WEBAPP_IMAGE }}:${{ needs.build-scan.outputs.sha }}
+        run: |
+          kubectl apply -f k8s/00-namespace.yaml
+          kubectl apply -f k8s/webapp/serviceaccount.yaml
+          kubectl apply -f k8s/webapp/configmap.yaml
+          kubectl apply -f k8s/mysql/statefulset.yaml
+          kubectl apply -f k8s/webapp/ingress.yaml
+          kubectl -n securetask get secret flask-secret &>/dev/null || \
+            kubectl -n securetask create secret generic flask-secret \
+              --from-literal=secret-key="$(openssl rand -hex 32)"
+          sed "s|IMAGE_PLACEHOLDER|${GHCR_IMAGE}|g" \
+            k8s/webapp/deployment.yaml | kubectl apply -f -
+          kubectl -n securetask rollout status deployment/webapp --timeout=5m
+
+      - name: Deploy Conjur UI
+        env:
+          GHCR_IMAGE: ${{ env.CONJURUI_IMAGE }}:${{ needs.build-scan.outputs.sha }}
+        run: |
+          kubectl apply -f k8s/conjur-ui/serviceaccount.yaml
+          kubectl apply -f k8s/conjur-ui/configmap.yaml
+          kubectl -n conjur create secret generic conjur-ui-secret \
+            --from-literal=FLASK_SECRET_KEY="$(openssl rand -hex 32)" \
+            --dry-run=client -o yaml | kubectl apply -f -
+          sed "s|IMAGE_PLACEHOLDER|${GHCR_IMAGE}|g" \
+            k8s/conjur-ui/deployment.yaml | kubectl apply -f -
+          kubectl -n conjur rollout status deployment/conjur-ui --timeout=3m
+
+      - name: Smoke test
+        run: |
+          kubectl -n securetask port-forward svc/webapp 18080:80 &
+          sleep 5
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:18080/healthz)
+          [ "${STATUS}" = "200" ] || { echo "healthz returned ${STATUS}"; exit 1; }
+          echo "Deployed webapp:${{ needs.build-scan.outputs.sha }}" >> $GITHUB_STEP_SUMMARY
+
+      - name: DAST (OWASP ZAP)
+        uses: zaproxy/action-baseline@v0.12.0
+        with:
+          target:          "http://localhost:18080/app/"
+          rules_file_name: ".zap/rules.tsv"
+          cmd_options:     "-I"
+          artifact_name:   zap-report
+        continue-on-error: true
+
+      - name: Upload ZAP SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: zap-report.sarif
+          category: zap-dast
+        continue-on-error: true
