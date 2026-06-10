@@ -20,7 +20,9 @@ log = logging.getLogger(__name__)
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-secret-change-in-prod")
-app.config["PREFERRED_URL_SCHEME"] = "https"
+app.config["PREFERRED_URL_SCHEME"] = os.environ.get("PREFERRED_URL_SCHEME", "http")
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["SESSION_COOKIE_SECURE"]   = False
 
 # Set SCRIPT_NAME so url_for() generates /ui/... paths (nginx strips the
 # prefix before forwarding, but redirects must still include it).
