@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Conjur UI{% endblock %}
+{% block content %}
+
+<div class="page-title">Dashboard</div>
+
+<!-- Server health strip -->
+<div class="card">
+  <div class="card-title">Server Health</div>
+  {% if health.error is defined %}
+    <span class="badge badge-red">UNREACHABLE — {{ health.error }}</span>
+  {% else %}
+    <div class="grid-3">
+      <div>
+        <div class="stat-num">
+          {% if health.ok or health.status == 'ok' %}
+            <span class="badge badge-green" style="font-size:1rem;">OK</span>
+          {% else %}
+            <span class="badge badge-red" style="font-size:1rem;">DEGRADED</span>
+          {% endif %}
+        </div>
+        <div class="stat-label">Overall</div>
+      </div>
+      {% if health.database is defined %}
+      <div>
+        <div class="stat-num">
+          {% if health.database.ok %}
+            <span class="badge badge-green" style="font-size:1rem;">OK</span>
+          {% else %}
+            <span class="badge badge-red" style="font-size:1rem;">FAIL</span>
+          {% endif %}
+        </div>
+        <div class="stat-label">Database</div>
+      </div>
+      {% endif %}
+      {% if health.audit is defined %}
+      <div>
+        <div class="stat-num">
+          {% if health.audit.ok %}
+            <span class="badge badge-green" style="font-size:1rem;">OK</span>
+          {% else %}
+            <span class="badge badge-red" style="font-size:1rem;">FAIL</span>
+          {% endif %}
+        </div>
+        <div class="stat-label">Audit</div>
+      </div>
+      {% endif %}
+    </div>
+    <details style="margin-top:1rem;">
+      <summary style="cursor:pointer; font-size:.78rem; color:var(--muted);">
+        Raw health JSON
+      </summary>
+      <pre style="margin-top:.5rem;">{{ health | tojson(indent=2) }}</pre>
+    </details>
+  {% endif %}
+</div>
+
+<!-- Server info + authenticators -->
+<div class="grid-2">
+  <div class="card">
+    <div class="card-title">Server Info</div>
+    {% if server_info %}
+      <table>
+        {% for k, v in server_info.items() %}
+        <tr>
+          <td style="color:var(--muted); width:40%;">{{ k }}</td>
+          <td><code>{{ v }}</code></td>
+        </tr>
+        {% endfor %}
+      </table>
+    {% else %}
+      <span class="badge badge-red">Unavailable</span>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <div class="card-title">Authenticators</div>
+    {% if authenticators %}
+      <div style="display:flex; flex-wrap:wrap; gap:.5rem;">
+        {% for a in authenticators.get('enabled', []) %}
+          <span class="badge badge-green">{{ a }}</span>
+        {% endfor %}
+        {% for a in authenticators.get('configured', []) %}
+          {% if a not in authenticators.get('enabled', []) %}
+            <span class="badge badge-orange">{{ a }} (configured)</span>
+          {% endif %}
+        {% endfor %}
+      </div>
+    {% else %}
+      <span style="color:var(--muted); font-size:.875rem;">No authenticator data</span>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Quick links -->
+<div class="card">
+  <div class="card-title">Quick Actions</div>
+  <div style="display:flex; gap:.75rem; flex-wrap:wrap;">
+    <a href="{{ url_for('variables') }}" class="btn btn-outline">
+      View Variables
+    </a>
+    <a href="{{ url_for('policies') }}" class="btn btn-outline">
+      Load Policy
+    </a>
+    <a href="{{ url_for('resources') }}?kind=host" class="btn btn-outline">
+      View Hosts
+    </a>
+    <a href="{{ url_for('resources') }}?kind=user" class="btn btn-outline">
+      View Users
+    </a>
+    <a href="{{ url_for('resources') }}" class="btn btn-outline">
+      All Resources
+    </a>
+  </div>
+</div>
+
+{% endblock %}

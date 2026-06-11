@@ -4,9 +4,10 @@ metadata:
   name: conjur-config
   namespace: securetask
 data:
-  CONJUR_APPLIANCE_URL: "https://PLACEHOLDER_DOMAIN"
+  # Internal cluster URL — no external DNS needed
+  CONJUR_APPLIANCE_URL: "https://conjur-oss.conjur.svc.cluster.local"
   CONJUR_ACCOUNT: "myConjurAccount"
-  CONJUR_AUTHN_JWT_URL: "https://PLACEHOLDER_DOMAIN/authn-jwt/k8s-cluster"
+  CONJUR_AUTHN_JWT_URL: "https://conjur-oss.conjur.svc.cluster.local/authn-jwt/k8s-cluster"
   DB_HOST_SECRET:     "myapp/database/host"
   DB_PORT_SECRET:     "myapp/database/port"
   DB_USER_SECRET:     "myapp/database/user"

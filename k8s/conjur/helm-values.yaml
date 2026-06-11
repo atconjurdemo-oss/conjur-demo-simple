@@ -1,0 +1,14 @@
+# Conjur OSS Helm values
+# Used by scripts/01-install-conjur.sh
+# ssl.hostname is set at deploy time via --set
+
+account:
+  name: myConjurAccount
+
+authenticators: "authn,authn-jwt/k8s-cluster"
+
+ssl:
+  hostname: conjur-oss.conjur.svc.cluster.local
+
+service:
+  type: ClusterIP

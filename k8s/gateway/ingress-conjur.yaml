@@ -1,0 +1,21 @@
+---
+# Conjur UI — serves at /ui (no rewrite — Flask owns the full /ui/... paths)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: gateway-ui
+  namespace: conjur
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: nginx
+  rules:
+    - http:
+        paths:
+          - path: /ui
+            pathType: Prefix
+            backend:
+              service:
+                name: conjur-ui
+                port:
+                  number: 80

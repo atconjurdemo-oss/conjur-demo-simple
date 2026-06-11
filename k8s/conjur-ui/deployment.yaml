@@ -1,0 +1,64 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: conjur-ui
+  namespace: conjur
+  labels:
+    app: conjur-ui
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: conjur-ui
+  template:
+    metadata:
+      labels:
+        app: conjur-ui
+    spec:
+      serviceAccountName: conjur-ui
+      automountServiceAccountToken: true
+      containers:
+        - name: conjur-ui
+          image: IMAGE_PLACEHOLDER
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: conjur-ui-config
+            - secretRef:
+                name: conjur-ui-secret
+          readinessProbe:
+            httpGet:
+              path: /ui/healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /ui/healthz
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: conjur-ui
+  namespace: conjur
+spec:
+  selector:
+    app: conjur-ui
+  ports:
+    - port: 80
+      targetPort: 8080
+  type: LoadBalancer

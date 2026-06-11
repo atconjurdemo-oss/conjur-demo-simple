@@ -1,0 +1,16 @@
+---
+# ConfigMap for the Conjur UI.
+# CONJUR_APPLIANCE_URL uses the cluster-internal DNS — no external URL needed.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: conjur-ui-config
+  namespace: conjur
+data:
+  CONJUR_APPLIANCE_URL:    "https://conjur-oss.conjur.svc.cluster.local"
+  CONJUR_ACCOUNT:          "myConjurAccount"
+  CONJUR_SSL_VERIFY:       "false"
+  CONJUR_AUTHN_JWT_SERVICE: "k8s-cluster"
+  CONJUR_HOST_ID:          "host/myapp/conjur-ui"
+  CONJUR_NAMESPACE:        "conjur"
+  APPLICATION_ROOT:        "/ui"

@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Resources — Conjur UI{% endblock %}
+{% block content %}
+
+<div class="page-title">Resources</div>
+
+<!-- Filter bar -->
+<div class="card">
+  <div class="card-title">Filter by Kind</div>
+  <div style="display:flex; gap:.5rem; flex-wrap:wrap;">
+    {% for k in ['', 'variable', 'policy', 'host', 'user', 'group', 'layer', 'webservice'] %}
+    <a href="{{ url_for('resources') }}?kind={{ k }}"
+       class="btn btn-sm {% if kind == k %}btn-primary{% else %}btn-outline{% endif %}">
+      {{ k if k else 'All' }}
+    </a>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Results -->
+<div class="card">
+  <div class="card-title">
+    {% if kind %}{{ kind | capitalize }}s{% else %}All Resources{% endif %}
+    <span style="color:var(--muted); font-weight:400;">({{ resources | length }})</span>
+  </div>
+  {% if resources %}
+  <table>
+    <thead>
+      <tr>
+        <th>Kind</th>
+        <th>ID</th>
+        <th>Owner</th>
+        <th>Created</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in resources %}
+      {% set parts = r.id.split(':') %}
+      <tr>
+        <td>
+          {% set kind_val = parts[1] if parts|length > 1 else '' %}
+          {% if kind_val == 'variable' %}
+            <span class="badge badge-purple">variable</span>
+          {% elif kind_val == 'host' %}
+            <span class="badge badge-orange">host</span>
+          {% elif kind_val == 'user' %}
+            <span class="badge badge-blue">user</span>
+          {% elif kind_val == 'policy' %}
+            <span class="badge badge-green">policy</span>
+          {% elif kind_val == 'group' %}
+            <span class="badge badge-red">group</span>
+          {% else %}
+            <span class="badge" style="background:var(--border);color:var(--muted);">
+              {{ kind_val }}
+            </span>
+          {% endif %}
+        </td>
+        <td><code style="font-size:.78rem;">{{ parts[-1] if parts|length > 1 else r.id }}</code></td>
+        <td style="color:var(--muted); font-size:.78rem;">
+          {{ r.owner.split(':')[-1] if r.owner else '—' }}
+        </td>
+        <td style="color:var(--muted); font-size:.78rem;">
+          {{ r.created_at[:10] if r.created_at is defined else '—' }}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+    <p style="color:var(--muted); font-size:.875rem;">No resources found.</p>
+  {% endif %}
+</div>
+
+{% endblock %}

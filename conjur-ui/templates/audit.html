@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}Conjur Audit Log{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2>Conjur Audit Log</h2>
+  <span class="text-muted small">Live from conjur-oss pod logs</span>
+</div>
+
+<form method="get" class="row g-2 mb-3 align-items-center">
+  <div class="col-auto">
+    <label class="col-form-label">Lines</label>
+  </div>
+  <div class="col-auto">
+    <select name="lines" class="form-select form-select-sm">
+      {% for n in [100, 200, 500, 1000] %}
+      <option value="{{ n }}" {% if n == lines %}selected{% endif %}>{{ n }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-auto">
+    <input type="text" name="filter" class="form-control form-control-sm"
+           placeholder="Filter keywords (e.g. webapp, authenticate, 401)"
+           value="{{ filter_kw }}" style="min-width:300px">
+  </div>
+  <div class="col-auto">
+    <button type="submit" class="btn btn-sm btn-primary">Apply</button>
+    <a href="{{ url_for('audit') }}" class="btn btn-sm btn-outline-secondary ms-1">Reset</a>
+  </div>
+</form>
+
+{% if error %}
+<div class="alert alert-danger">
+  <strong>Error:</strong> {{ error }}<br>
+  <small>Make sure the conjur-ui ServiceAccount has permission to run kubectl logs.</small>
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="card-header d-flex justify-content-between">
+    <span>{{ events|length }} events</span>
+    <small class="text-muted">Security-relevant lines from conjur-oss container</small>
+  </div>
+  <div class="card-body p-0">
+    {% if events %}
+    <pre class="m-0 p-3" style="font-size:0.78rem; max-height:70vh; overflow-y:auto; background:#1e1e1e; color:#d4d4d4; white-space:pre-wrap; word-break:break-all;">
+{%- for line in events %}
+{%- if 'authenticate' in line.lower() and ('200' in line or 'succeeded' in line.lower()) %}
+<span style="color:#4ec9b0">{{ line }}</span>
+{%- elif '401' in line or 'failed' in line.lower() or 'unauthorized' in line.lower() or 'error' in line.lower() %}
+<span style="color:#f44747">{{ line }}</span>
+{%- elif 'policy' in line.lower() %}
+<span style="color:#dcdcaa">{{ line }}</span>
+{%- elif 'secret' in line.lower() or 'variable' in line.lower() or 'fetch' in line.lower() %}
+<span style="color:#9cdcfe">{{ line }}</span>
+{%- else %}
+{{ line }}
+{%- endif %}
+{% endfor %}
+</pre>
+    {% else %}
+    <div class="p-4 text-center text-muted">
+      No matching log lines found.<br>
+      Try removing the filter or increasing the line count.
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="mt-2 text-muted small">
+  <strong>Color key:</strong>
+  <span style="color:#4ec9b0">■</span> Successful auth &nbsp;
+  <span style="color:#f44747">■</span> Failures / errors &nbsp;
+  <span style="color:#dcdcaa">■</span> Policy operations &nbsp;
+  <span style="color:#9cdcfe">■</span> Secret fetches
+</div>
+{% endblock %}
