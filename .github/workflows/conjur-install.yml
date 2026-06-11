@@ -93,6 +93,21 @@ jobs:
             echo "service:" >> /tmp/conjur-values.yaml
             echo "  type: ClusterIP" >> /tmp/conjur-values.yaml
             echo "dataKey: ${CLEAN_KEY}" >> /tmp/conjur-values.yaml
+            echo "resources:" >> /tmp/conjur-values.yaml
+            echo "  requests:" >> /tmp/conjur-values.yaml
+            echo "    memory: 128Mi" >> /tmp/conjur-values.yaml
+            echo "    cpu: 100m" >> /tmp/conjur-values.yaml
+            echo "  limits:" >> /tmp/conjur-values.yaml
+            echo "    memory: 512Mi" >> /tmp/conjur-values.yaml
+            echo "    cpu: 500m" >> /tmp/conjur-values.yaml
+            echo "postgres:" >> /tmp/conjur-values.yaml
+            echo "  resources:" >> /tmp/conjur-values.yaml
+            echo "    requests:" >> /tmp/conjur-values.yaml
+            echo "      memory: 64Mi" >> /tmp/conjur-values.yaml
+            echo "      cpu: 50m" >> /tmp/conjur-values.yaml
+            echo "    limits:" >> /tmp/conjur-values.yaml
+            echo "      memory: 256Mi" >> /tmp/conjur-values.yaml
+            echo "      cpu: 200m" >> /tmp/conjur-values.yaml
             helm upgrade --install conjur-oss cyberark/conjur-oss \
               --namespace conjur --values /tmp/conjur-values.yaml --wait --timeout 8m
             ENCODED="$(echo -n 'authn,authn-jwt/k8s-cluster' | base64 | tr -d '\n')"
