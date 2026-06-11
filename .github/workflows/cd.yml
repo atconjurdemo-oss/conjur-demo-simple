@@ -1,10 +1,10 @@
-# cd.yml --- Build, scan, push, and deploy on push to main.
+# cd.yml --- Build, scan, push, and deploy.
 # Requires GitHub secrets: KUBECONFIG_B64
-# Requires GitHub variables: DUCKDNS_SUBDOMAIN (optional, for display only)
 
 name: CD
 
 on:
+  workflow_dispatch: {}
   push:
     branches: [main]
     paths:
@@ -51,26 +51,8 @@ jobs:
         with:
           driver: docker
 
-      # ------ Webapp ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-      - name: Build webapp
-        uses: docker/build-push-action@v5
-        with:
-          context: app
-          push: false
-          tags: ${{ env.WEBAPP_IMAGE }}:latest
-          load: true
-
-      - name: Scan webapp (Trivy)
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref:       ${{ env.WEBAPP_IMAGE }}:latest
-          format:          table
-          exit-code:       1
-          severity:        HIGH,CRITICAL
-          ignore-unfixed:  true
-          trivyignores:    .trivyignore
-
-      - name: Push webapp
+      # ------ Webapp ---------------------------------------------------------------
+      - name: Build and push webapp
         uses: docker/build-push-action@v5
         with:
           context: app
@@ -78,6 +60,16 @@ jobs:
           tags: |
             ${{ env.WEBAPP_IMAGE }}:latest
             ${{ env.WEBAPP_IMAGE }}:${{ steps.sha.outputs.sha }}
+
+      - name: Scan webapp (Trivy)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref:       ${{ env.WEBAPP_IMAGE }}:${{ steps.sha.outputs.sha }}
+          format:          table
+          exit-code:       1
+          severity:        HIGH,CRITICAL
+          ignore-unfixed:  true
+          trivyignores:    .trivyignore
 
       - name: SBOM webapp
         uses: anchore/sbom-action@v0
@@ -87,26 +79,8 @@ jobs:
           artifact-name: sbom-webapp-${{ steps.sha.outputs.sha }}.spdx.json
           upload-release-assets: false
 
-      # ------ Conjur UI ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-      - name: Build conjur-ui
-        uses: docker/build-push-action@v5
-        with:
-          context: conjur-ui
-          push: false
-          tags: ${{ env.CONJURUI_IMAGE }}:latest
-          load: true
-
-      - name: Scan conjur-ui (Trivy)
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref:       ${{ env.CONJURUI_IMAGE }}:latest
-          format:          table
-          exit-code:       1
-          severity:        HIGH,CRITICAL
-          ignore-unfixed:  true
-          trivyignores:    .trivyignore
-
-      - name: Push conjur-ui
+      # ------ Conjur UI ------------------------------------------------------------
+      - name: Build and push conjur-ui
         uses: docker/build-push-action@v5
         with:
           context: conjur-ui
@@ -114,6 +88,16 @@ jobs:
           tags: |
             ${{ env.CONJURUI_IMAGE }}:latest
             ${{ env.CONJURUI_IMAGE }}:${{ steps.sha.outputs.sha }}
+
+      - name: Scan conjur-ui (Trivy)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref:       ${{ env.CONJURUI_IMAGE }}:${{ steps.sha.outputs.sha }}
+          format:          table
+          exit-code:       1
+          severity:        HIGH,CRITICAL
+          ignore-unfixed:  true
+          trivyignores:    .trivyignore
 
       - name: SBOM conjur-ui
         uses: anchore/sbom-action@v0
@@ -162,7 +146,7 @@ jobs:
               --from-literal=secret-key="$(openssl rand -hex 32)"
           sed "s|IMAGE_PLACEHOLDER|${GHCR_IMAGE}|g" \
             k8s/webapp/deployment.yaml | kubectl apply -f -
-          kubectl -n securetask rollout status deployment/webapp --timeout=5m
+          kubectl -n securetask rollout status deployment/webapp --timeout=15m
 
       - name: Deploy Conjur UI
         env:

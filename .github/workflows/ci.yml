@@ -1,9 +1,10 @@
-# ci.yml — Runs on every push and pull request.
+# ci.yml --- Runs on every push and pull request.
 # Checks: lint, SAST, OCV (dependency scan), Docker build, manifest validation.
 
 name: CI
 
 on:
+  workflow_dispatch: {}
   push:
     branches: [main]
   pull_request:
@@ -19,7 +20,7 @@ env:
   CONJURUI_IMAGE:  ghcr.io/${{ github.repository_owner }}/conjur-demo-simple-conjur-ui
 
 jobs:
-  # ── Lint ────────────────────────────────────────────────────────────────────
+  # ------ Lint ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
   lint:
     name: Lint
     runs-on: ubuntu-latest
@@ -31,7 +32,7 @@ jobs:
       - run: pip install ruff
       - run: ruff check app/ conjur-ui/
 
-  # ── SAST ────────────────────────────────────────────────────────────────────
+  # ------ SAST ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
   sast:
     name: SAST (Bandit + Semgrep)
     runs-on: ubuntu-latest
@@ -43,7 +44,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Bandit — Python security scan
+      - name: Bandit --- Python security scan
         run: |
           pip install bandit[sarif]
           bandit -r app/ conjur-ui/ -f sarif -o bandit.sarif \
@@ -54,14 +55,14 @@ jobs:
           sarif_file: bandit.sarif
           category: bandit
         continue-on-error: true
-      - name: Semgrep — OWASP rules
+      - name: Semgrep --- OWASP rules
         run: |
           pip install semgrep
           semgrep --config "p/python" --config "p/owasp-top-ten" \
             app/ conjur-ui/ --error || true
         continue-on-error: true
 
-  # ── OCV ─────────────────────────────────────────────────────────────────────
+  # ------ OCV ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
   ocv:
     name: OCV (pip-audit + Trivy filesystem)
     runs-on: ubuntu-latest
@@ -73,11 +74,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: pip-audit — webapp
+      - name: pip-audit --- webapp
         run: |
           pip install pip-audit
           pip-audit -r app/requirements.txt || true
-      - name: pip-audit — conjur-ui
+      - name: pip-audit --- conjur-ui
         run: pip-audit -r conjur-ui/requirements.txt || true
       - name: Trivy filesystem scan
         uses: aquasecurity/trivy-action@master
@@ -95,7 +96,7 @@ jobs:
           category: trivy-fs
         continue-on-error: true
 
-  # ── Docker build (smoke test) ───────────────────────────────────────────────
+  # ------ Docker build (smoke test) ---------------------------------------------------------------------------------------------------------------------------------------------
   docker-build:
     name: Docker Build
     runs-on: ubuntu-latest
@@ -125,7 +126,7 @@ jobs:
           tags: ${{ env.CONJURUI_IMAGE }}:ci
           cache-from: type=gha
 
-  # ── Manifest validation ─────────────────────────────────────────────────────
+  # ------ Manifest validation ---------------------------------------------------------------------------------------------------------------------------------------------------------------
   validate-manifests:
     name: Validate K8s Manifests
     runs-on: ubuntu-latest
