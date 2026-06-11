@@ -84,16 +84,15 @@ jobs:
             DATA_KEY="${EXISTING_KEY:-$(openssl rand -base64 32)}"
             kubectl -n conjur create secret generic conjur-data-key \
               --from-literal=key="${DATA_KEY}" --dry-run=client -o yaml | kubectl apply -f -
-            cat > /tmp/conjur-values.yaml <<EOF
-          account:
-            name: "${CONJUR_ACCOUNT}"
-          authenticators: "authn,authn-jwt/k8s-cluster"
-          ssl:
-            hostname: "conjur-oss.conjur.svc.cluster.local"
-          service:
-            type: ClusterIP
-          dataKey: "$(echo "${DATA_KEY}" | tr -d '\n')"
-EOF
+            CLEAN_KEY="$(echo "${DATA_KEY}" | tr -d '\n')"
+            echo "account:" > /tmp/conjur-values.yaml
+            echo "  name: ${CONJUR_ACCOUNT}" >> /tmp/conjur-values.yaml
+            echo 'authenticators: "authn,authn-jwt/k8s-cluster"' >> /tmp/conjur-values.yaml
+            echo "ssl:" >> /tmp/conjur-values.yaml
+            echo "  hostname: conjur-oss.conjur.svc.cluster.local" >> /tmp/conjur-values.yaml
+            echo "service:" >> /tmp/conjur-values.yaml
+            echo "  type: ClusterIP" >> /tmp/conjur-values.yaml
+            echo "dataKey: ${CLEAN_KEY}" >> /tmp/conjur-values.yaml
             helm upgrade --install conjur-oss cyberark/conjur-oss \
               --namespace conjur --values /tmp/conjur-values.yaml --wait --timeout 8m
             ENCODED="$(echo -n 'authn,authn-jwt/k8s-cluster' | base64 | tr -d '\n')"
