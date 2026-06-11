@@ -146,9 +146,9 @@ jobs:
       - name: Verify Conjur is seeded
         run: |
           kubectl -n conjur get secret conjur-admin-api-key &>/dev/null || \
-            { echo "ERROR: Run scripts/02-init-account.sh first"; exit 1; }
+            { echo "ERROR: conjur-admin-api-key not found — run conjur-install workflow first"; exit 1; }
           kubectl -n securetask get secret conjur-ssl-cert &>/dev/null || \
-            { echo "ERROR: Run scripts/02-init-account.sh first"; exit 1; }
+            { echo "ERROR: conjur-ssl-cert not found — run conjur-install workflow first"; exit 1; }
           echo "Conjur ready."
 
       - name: Deploy webapp
