@@ -136,14 +136,39 @@ Runs on pull requests:
 
 ## Credentials
 
-### Conjur Admin UI login
+### Prerequisites — GitHub Secrets required
 
+| Secret | How to create | Used by |
+|--------|--------------|---------|
+| `KUBECONFIG_B64` | `cat ~/.kube/config \| base64` | All workflows |
+| `DB_APP_PASSWORD` | Any strong password | conjur-seed |
+| `GH_SECRETS_TOKEN` | GitHub PAT with `secrets:write` scope | conjur-install, conjur-seed |
+| `CONJUR_ADMIN_API_KEY` | Set automatically by conjur-install | conjur-seed |
+| `CONJUR_UI_OPERATOR_KEY` | Set automatically by conjur-seed | Conjur UI login |
+
+### Conjur UI login
+
+**Normal use — operator account (read-only):**
+- **Username:** `myapp/conjur-ui-operator`
+- **API Key:** value of `CONJUR_UI_OPERATOR_KEY` GitHub Secret
+
+**Break-glass — full admin:**
 - **Username:** `admin`
 - **API Key:**
 ```bash
 kubectl -n conjur get secret conjur-admin-api-key \
   -o jsonpath='{.data.key}' | base64 -d
 ```
+
+### Operator vs Admin
+
+| | `conjur-ui-operator` | `admin` |
+|--|--|--|
+| View variables | ✓ (except root-password) | ✓ |
+| Set variable values | ✗ | ✓ |
+| Load policies | ✗ | ✓ |
+| View resources | ✓ | ✓ |
+| View audit log | ✓ | ✓ |
 
 ---
 
@@ -167,7 +192,7 @@ Identities:
 | Secret | Namespace | Purpose | Sensitivity |
 |---|---|---|---|
 | `conjur-data-key` | conjur | Conjur database encryption key | High |
-| `conjur-admin-api-key` | conjur | Conjur admin API key | High |
+| `conjur-admin-api-key` | conjur | Conjur admin API key (break-glass only — pipelines use GitHub Secret) | High |
 | `conjur-ssl-cert` | securetask | Conjur TLS cert for sidecar | Low |
 | `flask-secret` | securetask | Webapp CSRF signing key | Medium |
 | `conjur-ui-secret` | conjur | Conjur UI session signing key | Medium |

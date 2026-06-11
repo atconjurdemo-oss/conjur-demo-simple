@@ -1,7 +1,8 @@
 # conjur-seed.yml — Load Conjur policies and write secrets (manual trigger).
 # Run after conjur-install.yml.
 #
-# Required secrets: KUBECONFIG_B64, DB_APP_PASSWORD
+# Required secrets: KUBECONFIG_B64, CONJUR_ADMIN_API_KEY, DB_APP_PASSWORD,
+#                   GH_SECRETS_TOKEN (PAT with secrets:write)
 # Required variables: CONJUR_ACCOUNT (default: myConjurAccount)
 
 name: Conjur Seed
@@ -30,6 +31,8 @@ jobs:
           chmod 600 $HOME/.kube/config
 
       - name: Seed via REST API
+        env:
+          GH_TOKEN: ${{ secrets.GH_SECRETS_TOKEN }}
         run: |
           PORT=8443
           kubectl -n conjur port-forward svc/conjur-oss ${PORT}:443 &
@@ -37,8 +40,9 @@ jobs:
           sleep 3
           trap "kill ${PF_PID} 2>/dev/null" EXIT
 
-          ADMIN_KEY="$(kubectl -n conjur get secret conjur-admin-api-key \
-            -o jsonpath='{.data.key}' | base64 -d)"
+          # Read admin key from GitHub Secrets (set by conjur-install.yml)
+          ADMIN_KEY="${{ secrets.CONJUR_ADMIN_API_KEY }}"
+          [ -n "${ADMIN_KEY}" ] || { echo "ERROR: CONJUR_ADMIN_API_KEY secret not set — run conjur-install first"; exit 1; }
           echo "Admin key: ${#ADMIN_KEY} chars"
 
           _token() {
@@ -118,7 +122,26 @@ jobs:
           done
           ${ALL_OK} || { echo "Some secrets missing!"; exit 1; }
 
+          echo "--- Creating conjur-ui-operator user ---"
+          _policy PUT myapp conjur-policy/ui-operator.yml
+
+          # Rotate the operator API key and push to GitHub Secrets
+          OPERATOR_ID="${CONJUR_ACCOUNT}:user:myapp/conjur-ui-operator"
+          OPERATOR_ENC="$(python3 -c "import urllib.parse; print(urllib.parse.quote('${OPERATOR_ID}', safe=''))")"
+          tok="$(_token)"
+          OPERATOR_KEY="$(curl -sf -k \
+            -X PUT "https://localhost:${PORT}/authn/${CONJUR_ACCOUNT}/api_key?role=${OPERATOR_ENC}" \
+            -H "Authorization: Token token=\"${tok}\"" | tr -d '\n\r ')"
+          if [ -n "${OPERATOR_KEY}" ] && [ "${#OPERATOR_KEY}" -gt 10 ]; then
+            gh secret set CONJUR_UI_OPERATOR_KEY \
+              --body "${OPERATOR_KEY}" \
+              --repo "${{ github.repository }}"
+            echo "  conjur-ui-operator key pushed to GitHub Secrets (${#OPERATOR_KEY} chars)."
+          else
+            echo "  WARN: could not rotate operator key — it may need a first-time login"
+          fi
+
           echo "## Conjur Seed Complete" >> $GITHUB_STEP_SUMMARY
           echo "- Account: ${CONJUR_ACCOUNT}" >> $GITHUB_STEP_SUMMARY
-          echo "- Policies: root, myapp, conjur/authn-jwt" >> $GITHUB_STEP_SUMMARY
+          echo "- Policies: root, myapp, conjur/authn-jwt, myapp (ui-operator)" >> $GITHUB_STEP_SUMMARY
           echo "- Next: Run **CD** workflow or push to main" >> $GITHUB_STEP_SUMMARY

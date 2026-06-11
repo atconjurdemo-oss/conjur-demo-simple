@@ -1,0 +1,37 @@
+# ui-operator.yml — read-only Conjur user for the Admin UI
+# Load with: conjur policy load -b myapp -f conjur-policy/ui-operator.yml
+#
+# conjur-ui-operator can read all DB variables except root-password.
+# It authenticates via username + API key (browser login) — not JWT.
+# Its API key is rotated by conjur-seed.yml and stored in GitHub Secrets.
+---
+- !user
+  id: conjur-ui-operator
+  annotations:
+    description: "Read-only operator account for the Conjur Admin UI"
+
+# ── Permits: read all DB vars except root-password ────────────────────────────
+- !permit
+  role: !user conjur-ui-operator
+  privilege: [read, execute]
+  resource: !variable database/host
+
+- !permit
+  role: !user conjur-ui-operator
+  privilege: [read, execute]
+  resource: !variable database/port
+
+- !permit
+  role: !user conjur-ui-operator
+  privilege: [read, execute]
+  resource: !variable database/user
+
+- !permit
+  role: !user conjur-ui-operator
+  privilege: [read, execute]
+  resource: !variable database/password
+
+- !permit
+  role: !user conjur-ui-operator
+  privilege: [read, execute]
+  resource: !variable database/name

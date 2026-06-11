@@ -1,5 +1,9 @@
 # conjur-install.yml — Install Conjur OSS on GKE (manual trigger).
 # Run once on a fresh cluster before conjur-seed.yml.
+#
+# Required secrets: KUBECONFIG_B64, GH_SECRETS_TOKEN (PAT with secrets:write)
+#
+# Required secrets: KUBECONFIG_B64, GH_SECRETS_TOKEN (PAT with secrets:write)
 
 name: Conjur Installation
 
@@ -88,6 +92,8 @@ jobs:
 
       - name: Initialize Conjur account
         if: inputs.skip_install == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GH_SECRETS_TOKEN }}
         run: |
           # Wait for rollout to complete and old pod to terminate
           kubectl -n conjur rollout status deployment/conjur-oss --timeout=3m
@@ -111,10 +117,16 @@ jobs:
               conjurctl role retrieve-key "${CONJUR_ACCOUNT}:user:admin" | tr -d '[:space:]')"
           fi
           [ "${#ADMIN_KEY}" -gt 10 ] || { echo "ERROR: could not get admin key"; exit 1; }
+          # Push to GitHub Secrets so conjur-seed.yml can consume it
+          # without ever reading a k8s Secret at deploy time.
+          gh secret set CONJUR_ADMIN_API_KEY \
+            --body "${ADMIN_KEY}" \
+            --repo "${{ github.repository }}"
+          echo "Admin key pushed to GitHub Secrets (${#ADMIN_KEY} chars)."
+          # Also keep in k8s as a break-glass fallback (not used by pipelines)
           kubectl -n conjur delete secret conjur-admin-api-key --ignore-not-found
           kubectl -n conjur create secret generic conjur-admin-api-key \
             --from-literal=key="${ADMIN_KEY}"
-          echo "Admin key stored (${#ADMIN_KEY} chars)."
 
       - name: Store TLS cert for sidecar
         run: |

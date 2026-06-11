@@ -18,7 +18,7 @@
     <form method="post">
       <div class="form-row">
         <label>Username</label>
-        <input type="text" name="username" value="admin" required autofocus/>
+        <input type="text" name="username" value="myapp/conjur-ui-operator" required autofocus/>
       </div>
       <div class="form-row">
         <label>API Key</label>
@@ -32,7 +32,7 @@
   </div>
 
   <p style="font-size:.75rem; color:var(--muted); text-align:center; margin-top:1rem;">
-    Use the API key printed by <code>conjurctl account create</code>
+    Use the <code>CONJUR_UI_OPERATOR_KEY</code> GitHub Secret — or admin key for full access
   </p>
 </div>
 {% endblock %}
