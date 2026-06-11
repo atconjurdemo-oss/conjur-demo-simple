@@ -1,5 +1,6 @@
 # conjur-install.yml - Install Conjur OSS on GKE (manual trigger).
 # Run once on a fresh cluster before conjur-seed.yml.
+# Safe to re-run - skips resources that already exist.
 #
 # Required secrets: KUBECONFIG_B64, GH_SECRETS_TOKEN (PAT with secrets:write)
 
@@ -49,6 +50,7 @@ jobs:
           if helm -n ingress-nginx status ingress-nginx &>/dev/null && [ "${NGINX_READY:-0}" -ge 1 ]; then
             echo "NGINX already running -- skipping."
           else
+            echo "Installing NGINX Ingress..."
             helm -n ingress-nginx uninstall ingress-nginx 2>/dev/null || true
             kubectl delete namespace ingress-nginx --ignore-not-found
             kubectl wait --for=delete namespace/ingress-nginx --timeout=120s 2>/dev/null || true
@@ -59,7 +61,8 @@ jobs:
             helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
               --namespace ingress-nginx --create-namespace \
               --set controller.service.type=LoadBalancer \
-              --wait --timeout 3m
+              --wait --timeout 5m
+            echo "NGINX Ingress installed."
           fi
 
       - name: Install Conjur OSS
@@ -67,10 +70,21 @@ jobs:
         run: |
           helm repo add cyberark https://cyberark.github.io/helm-charts --force-update
           kubectl create namespace conjur --dry-run=client -o yaml | kubectl apply -f -
-          DATA_KEY="$(openssl rand -base64 32)"
-          kubectl -n conjur create secret generic conjur-data-key \
-            --from-literal=key="${DATA_KEY}" --dry-run=client -o yaml | kubectl apply -f -
-          cat > /tmp/conjur-values.yaml <<EOF
+
+          # Skip if Conjur is already running
+          CONJUR_READY=$(kubectl -n conjur get deploy conjur-oss \
+            -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo "0")
+          if helm -n conjur status conjur-oss &>/dev/null && [ "${CONJUR_READY:-0}" -ge 1 ]; then
+            echo "Conjur OSS already running -- skipping Helm install."
+          else
+            echo "Installing Conjur OSS..."
+            # Preserve existing data key if present, generate new one otherwise
+            EXISTING_KEY="$(kubectl -n conjur get secret conjur-data-key \
+              -o jsonpath='{.data.key}' 2>/dev/null | base64 -d || echo '')"
+            DATA_KEY="${EXISTING_KEY:-$(openssl rand -base64 32)}"
+            kubectl -n conjur create secret generic conjur-data-key \
+              --from-literal=key="${DATA_KEY}" --dry-run=client -o yaml | kubectl apply -f -
+            cat > /tmp/conjur-values.yaml <<EOF
           account:
             name: "${CONJUR_ACCOUNT}"
           authenticators: "authn,authn-jwt/k8s-cluster"
@@ -79,43 +93,47 @@ jobs:
           service:
             type: ClusterIP
           dataKey: "$(echo "${DATA_KEY}" | tr -d '\n')"
-          EOF
-          helm upgrade --install conjur-oss cyberark/conjur-oss \
-            --namespace conjur --values /tmp/conjur-values.yaml --wait --timeout 5m
-          ENCODED="$(echo -n 'authn,authn-jwt/k8s-cluster' | base64 | tr -d '\n')"
-          kubectl -n conjur patch secret conjur-oss-conjur-authenticators \
-            -p "{\"data\":{\"key\":\"${ENCODED}\"}}"
-          kubectl -n conjur rollout restart deployment/conjur-oss
-          kubectl -n conjur rollout status deployment/conjur-oss --timeout=3m
+EOF
+            helm upgrade --install conjur-oss cyberark/conjur-oss \
+              --namespace conjur --values /tmp/conjur-values.yaml --wait --timeout 8m
+            ENCODED="$(echo -n 'authn,authn-jwt/k8s-cluster' | base64 | tr -d '\n')"
+            kubectl -n conjur patch secret conjur-oss-conjur-authenticators \
+              -p "{\"data\":{\"key\":\"${ENCODED}\"}}"
+            kubectl -n conjur rollout restart deployment/conjur-oss
+            kubectl -n conjur rollout status deployment/conjur-oss --timeout=5m
+            echo "Conjur OSS installed."
+          fi
 
       - name: Initialize Conjur account
         if: inputs.skip_install == 'false'
         env:
           GH_TOKEN: ${{ secrets.GH_SECRETS_TOKEN }}
         run: |
-          # Wait for rollout to complete and old pod to terminate
-          kubectl -n conjur rollout status deployment/conjur-oss --timeout=3m
+          kubectl -n conjur rollout status deployment/conjur-oss --timeout=5m
           sleep 5
-          # Get the running (not terminating) pod
           POD="$(kubectl -n conjur get pod -l app=conjur-oss \
             --field-selector=status.phase=Running \
             -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || \
             kubectl -n conjur get pod -l app=conjur-oss \
             -o jsonpath='{.items[0].metadata.name}')"
           echo "Using pod: ${POD}"
-          # Verify pod is ready
-          kubectl -n conjur wait pod "${POD}" --for=condition=Ready --timeout=2m
+          kubectl -n conjur wait pod "${POD}" --for=condition=Ready --timeout=3m
+
+          # Retrieve existing key or create account
           ADMIN_KEY="$(kubectl -n conjur exec "${POD}" -c conjur-oss -- \
             conjurctl role retrieve-key "${CONJUR_ACCOUNT}:user:admin" \
             2>/dev/null | tr -d '[:space:]' || echo '')"
           if [ -z "${ADMIN_KEY}" ]; then
+            echo "Creating Conjur account..."
             kubectl -n conjur exec "${POD}" -c conjur-oss -- \
               conjurctl account create "${CONJUR_ACCOUNT}"
             ADMIN_KEY="$(kubectl -n conjur exec "${POD}" -c conjur-oss -- \
               conjurctl role retrieve-key "${CONJUR_ACCOUNT}:user:admin" | tr -d '[:space:]')"
+          else
+            echo "Account already exists -- retrieving existing key."
           fi
+
           [ "${#ADMIN_KEY}" -gt 10 ] || { echo "ERROR: could not get admin key"; exit 1; }
-          # Push to GitHub Secrets for use by conjur-seed workflow
           gh secret set CONJUR_ADMIN_API_KEY \
             --body "${ADMIN_KEY}" \
             --repo "${{ github.repository }}"
@@ -129,7 +147,7 @@ jobs:
             -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || \
             kubectl -n conjur get pod -l app=conjur-oss \
             -o jsonpath='{.items[0].metadata.name}')"
-          kubectl -n conjur wait pod "${POD}" --for=condition=Ready --timeout=2m
+          kubectl -n conjur wait pod "${POD}" --for=condition=Ready --timeout=3m
           CERT="$(kubectl -n conjur exec "${POD}" -c conjur-oss-nginx -- \
             cat /opt/conjur/etc/ssl/cert/tls.crt 2>/dev/null || echo '')"
           if [ -n "${CERT}" ]; then
@@ -137,10 +155,14 @@ jobs:
             kubectl -n securetask create secret generic conjur-ssl-cert \
               --from-literal=certificate="${CERT}"
             echo "conjur-ssl-cert stored."
+          else
+            echo "WARN: could not read Conjur TLS cert"
           fi
 
       - name: Summary
         run: |
           echo "## Conjur Installation Complete" >> $GITHUB_STEP_SUMMARY
           echo "- Account: ${CONJUR_ACCOUNT}" >> $GITHUB_STEP_SUMMARY
+          echo "- NGINX Ingress: installed" >> $GITHUB_STEP_SUMMARY
+          echo "- Conjur OSS: installed" >> $GITHUB_STEP_SUMMARY
           echo "- Next: Run **Conjur Seed** workflow" >> $GITHUB_STEP_SUMMARY
