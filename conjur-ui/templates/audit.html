@@ -6,14 +6,14 @@
 
 <form method="get" style="display:flex;gap:10px;align-items:center;margin-bottom:1.25rem;flex-wrap:wrap;">
   <div>
-    <label style="font-size:.8rem;color:var(--muted);">Events</label>
+    <label style="font-size:.8rem;color:var(--muted);">Lines</label>
     <select name="lines" class="btn btn-sm btn-outline" style="margin-left:6px;">
-      {% for n in [50, 100, 200, 500] %}
+      {% for n in [100, 200, 500, 1000] %}
       <option value="{{ n }}" {% if n == lines %}selected{% endif %}>{{ n }}</option>
       {% endfor %}
     </select>
   </div>
-  <input type="text" name="filter" placeholder="Filter (e.g. authenticate, policy, failed)"
+  <input type="text" name="filter" placeholder="Filter (e.g. authenticate, policy, 401)"
          value="{{ filter_kw }}" style="flex:1;min-width:200px;max-width:360px;">
   <button type="submit" class="btn btn-primary btn-sm">Apply</button>
   <a href="{{ url_for('audit') }}" class="btn btn-outline btn-sm">Reset</a>
@@ -21,61 +21,46 @@
 
 {% if error %}
 <div class="alert alert-danger">
-  <strong>Conjur /audit API error:</strong> {{ error }}
+  <strong>Error fetching logs:</strong> {{ error }}
 </div>
 {% endif %}
 
 <div class="card">
   <div class="card-title">
-    {{ events|length }} events &nbsp;·&nbsp;
-    <span style="color:var(--muted);font-weight:400;">from Conjur /audit API</span>
+    {{ events|length }} events
+    <span style="color:var(--muted);font-weight:400;font-size:.75rem;">
+      &nbsp;·&nbsp; security-relevant lines from conjur-oss pod
+    </span>
   </div>
 
   {% if events %}
-  <table>
-    <tr>
-      <th>Timestamp</th>
-      <th>Action</th>
-      <th>Role</th>
-      <th>Resource</th>
-      <th>Result</th>
-    </tr>
-    {% for e in events %}
-    {% set success = e.get('success', true) %}
-    {% set action  = e.get('action', e.get('event', '')) %}
-    {% set role    = e.get('subject', {}).get('role', e.get('user', '')) %}
-    {% set resource = e.get('subject', {}).get('resource', e.get('resource', '')) %}
-    {% set ts      = e.get('timestamp', e.get('created_at', '')) %}
-    <tr>
-      <td style="white-space:nowrap;font-size:.75rem;color:var(--muted);">{{ ts[:19] if ts else '' }}</td>
-      <td>
-        {% if 'authenticate' in action %}
-          <span class="badge badge-blue">{{ action }}</span>
-        {% elif 'fetch' in action or 'secret' in action %}
-          <span class="badge badge-purple">{{ action }}</span>
-        {% elif 'policy' in action %}
-          <span class="badge badge-orange">{{ action }}</span>
-        {% else %}
-          <span class="badge">{{ action }}</span>
-        {% endif %}
-      </td>
-      <td style="font-size:.8rem;">{{ role }}</td>
-      <td style="font-size:.8rem;word-break:break-all;">{{ resource }}</td>
-      <td>
-        {% if success %}
-          <span class="badge badge-green">success</span>
-        {% else %}
-          <span class="badge badge-red">failed</span>
-        {% endif %}
-      </td>
-    </tr>
-    {% endfor %}
-  </table>
+  <pre style="margin:0;padding:1rem;font-size:.78rem;max-height:65vh;overflow-y:auto;background:var(--bg);color:#cdd9e5;white-space:pre-wrap;word-break:break-all;border-radius:0 0 8px 8px;">
+{%- for line in events %}
+{%- if 'authenticate' in line.lower() and ('200' in line or 'succeeded' in line.lower()) %}
+<span style="color:#56d364">{{ line }}</span>
+{%- elif '401' in line or 'failed' in line.lower() or 'unauthorized' in line.lower() or 'error' in line.lower() %}
+<span style="color:#f78166">{{ line }}</span>
+{%- elif 'policy' in line.lower() %}
+<span style="color:#ffa657">{{ line }}</span>
+{%- elif 'secret' in line.lower() or 'variable' in line.lower() %}
+<span style="color:#79c0ff">{{ line }}</span>
+{%- else %}
+{{ line }}
+{%- endif %}
+{% endfor %}
+</pre>
   {% else %}
   <div style="padding:2rem;text-align:center;color:var(--muted);">
-    No audit events found.
+    No matching events. Try removing the filter or increasing lines.
   </div>
   {% endif %}
+</div>
+
+<div style="margin-top:.75rem;font-size:.75rem;color:var(--muted);">
+  <span style="color:#56d364">&#9632;</span> Successful auth &nbsp;
+  <span style="color:#f78166">&#9632;</span> Failures / errors &nbsp;
+  <span style="color:#ffa657">&#9632;</span> Policy operations &nbsp;
+  <span style="color:#79c0ff">&#9632;</span> Secret fetches
 </div>
 
 {% endblock %}
