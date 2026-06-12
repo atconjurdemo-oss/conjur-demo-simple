@@ -121,7 +121,7 @@
 
   <!-- 01 -->
   <div class="slide s1">
-    <div class="slide-num">01 / 08 — Architecture</div>
+    <div class="slide-num">01 / 10 — Architecture</div>
     <h1>System Architecture</h1>
     <div class="pills">
       <div class="pill"><div class="k">Platform</div><div class="v b">GKE · Google Cloud</div></div>
@@ -145,7 +145,7 @@ securetask ns              conjur ns
 
   <!-- 02 -->
   <div class="slide s2">
-    <div class="slide-num">02 / 08 — Applications</div>
+    <div class="slide-num">02 / 10 — Applications</div>
     <h1>Two Apps · One Secret Store</h1>
     <div class="cols">
       <div class="col">
@@ -180,7 +180,7 @@ securetask ns              conjur ns
 
   <!-- 03 -->
   <div class="slide s3">
-    <div class="slide-num">03 / 08 — JWT Authentication</div>
+    <div class="slide-num">03 / 10 — JWT Authentication</div>
     <h1>JWT Auth Flow</h1>
     <div class="flow">
       <div class="step"><div class="sn">1</div><div><div class="st">Pod starts → JWT auto-mounted</div><div class="ss"><code>/var/run/secrets/kubernetes.io/serviceaccount/token</code></div></div></div>
@@ -199,7 +199,7 @@ securetask ns              conjur ns
 
   <!-- 04 -->
   <div class="slide s4">
-    <div class="slide-num">04 / 08 — Secrets Provider Init Container</div>
+    <div class="slide-num">04 / 10 — Secrets Provider Init Container</div>
     <h1>How Secrets Reach the App</h1>
     <pre>webapp pod                         conjur-ui pod
 
@@ -229,7 +229,7 @@ main: Flask                        main: Flask
 
   <!-- 05 -->
   <div class="slide s5">
-    <div class="slide-num">05 / 08 — Conjur Config</div>
+    <div class="slide-num">05 / 10 — Conjur Config</div>
     <h1>Policy Structure</h1>
     <div class="cols">
       <div class="col">
@@ -263,7 +263,7 @@ main: Flask                        main: Flask
 
   <!-- 06 -->
   <div class="slide s6">
-    <div class="slide-num">06 / 08 — CI/CD</div>
+    <div class="slide-num">06 / 10 — CI/CD</div>
     <h1>DevSecOps Pipelines</h1>
     <div class="cols">
       <div class="col">
@@ -297,8 +297,68 @@ main: Flask                        main: Flask
   </div>
 
   <!-- 07 -->
+  <div class="slide s3">
+    <div class="slide-num">07 / 10 — Challenges</div>
+    <h1>Real Challenges Faced</h1>
+    <div class="cols">
+      <div class="col">
+        <h3>CI/CD Runner</h3>
+        <ul>
+          <li>No self-hosted runner allowed</li>
+          <li>Created SA + kubeconfig</li>
+          <li><b>KUBECONFIG_B64</b> in GitHub Secrets</li>
+        </ul>
+      </div>
+      <div class="col">
+        <h3>DNS / TLS</h3>
+        <ul>
+          <li>DuckDNS + Let's Encrypt attempted</li>
+          <li>DNS propagation too slow for cert-manager</li>
+          <li>Dropped — plain HTTP + ingress IP</li>
+        </ul>
+      </div>
+    </div>
+    <div class="cols" style="margin-top:12px;">
+      <div class="col">
+        <h3>Conjur Policy Loading</h3>
+        <ul>
+          <li><b>conjurctl</b> — inside pod only, not from runner</li>
+          <li>REST API via port-forward + self-signed cert (<code>-k</code>)</li>
+          <li><b>PUT</b> replaces · <b>POST</b> appends · wrong order = lost policies</li>
+        </ul>
+      </div>
+      <div class="col">
+        <h3>JWT: CONJ00098E</h3>
+        <ul>
+          <li><code>token-app-property</code> conflicted with URL identity</li>
+          <li>Removed token-app-property → URL-based identity only</li>
+        </ul>
+      </div>
+    </div>
+    <div class="cols" style="margin-top:12px;">
+      <div class="col">
+        <h3>Flask /ui Subpath</h3>
+        <ul>
+          <li>rewrite-target stripped <code>/ui</code> → <code>url_for()</code> broke</li>
+          <li>SCRIPT_NAME → broke k8s probes</li>
+          <li>configuration-snippet → blocked by cluster policy</li>
+          <li><b>Fix:</b> no rewrite + <code>DispatcherMiddleware</code></li>
+        </ul>
+      </div>
+      <div class="col">
+        <h3>NGINX Ingress Conflicts</h3>
+        <ul>
+          <li>Duplicate path admission webhook errors</li>
+          <li>ExternalName cross-namespace routing failed</li>
+          <li><b>Fix:</b> one gateway ingress per namespace</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- 08 -->
   <div class="slide s7">
-    <div class="slide-num">07 / 08 — Roadmap</div>
+    <div class="slide-num">08 / 10 — Roadmap</div>
     <h1>What to Improve</h1>
     <div class="flow">
       <div class="step"><div class="sn" style="background:#ffa657">1</div><div><div class="st">Secret rotation</div><div class="ss">sidecar mode + secrets-refresh-interval + pool rebuild</div></div></div>
@@ -309,9 +369,63 @@ main: Flask                        main: Flask
     </div>
   </div>
 
-  <!-- 08 -->
+  <!-- 09 -->
+  <div class="slide s1">
+    <div class="slide-num">09 / 10 — AI as Accelerator</div>
+    <h1>Built with Claude AI</h1>
+    <div class="cols">
+      <div class="col">
+        <h3>What AI accelerated</h3>
+        <ul>
+          <li>k8s manifests · Helm values</li>
+          <li>Conjur policy files</li>
+          <li>GitHub Actions workflows</li>
+          <li>Flask apps · Dockerfiles</li>
+          <li>Debugging + fixes</li>
+          <li>This presentation</li>
+        </ul>
+      </div>
+      <div class="col">
+        <h3>What I directed</h3>
+        <ul>
+          <li>Architecture decisions</li>
+          <li>Security requirements</li>
+          <li>Debugging root causes</li>
+          <li>Trade-off choices</li>
+          <li>All requirements &amp; scope</li>
+        </ul>
+      </div>
+    </div>
+    <div class="cols" style="margin-top:12px;">
+      <div class="col">
+        <h3>Where AI got it wrong</h3>
+        <ul>
+          <li>4 attempts on SCRIPT_NAME / probe issue</li>
+          <li>Ingress apply order → admission webhook conflict</li>
+          <li>Inline Python in YAML → parse error</li>
+        </ul>
+      </div>
+      <div class="col">
+        <h3>Key takeaway</h3>
+        <ul>
+          <li><b>AI eliminates boilerplate</b></li>
+          <li>Engineering judgment stays human</li>
+          <li>Days of work compressed to hours</li>
+          <li>Every fix required human diagnosis</li>
+        </ul>
+      </div>
+    </div>
+    <div class="tags" style="margin-top:14px;">
+      <span class="tag b">Claude (Anthropic)</span>
+      <span class="tag g">Force multiplier</span>
+      <span class="tag o">Not a replacement</span>
+      <span class="tag p">Engineer-led</span>
+    </div>
+  </div>
+
+  <!-- 10 -->
   <div class="slide s8">
-    <div class="slide-num">08 / 08 — Live Demo</div>
+    <div class="slide-num">10 / 10 — Live Demo</div>
     <h1>kubectl Demo</h1>
     <div class="cols">
       <div class="col">
