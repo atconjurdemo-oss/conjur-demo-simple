@@ -8,7 +8,6 @@ import os
 import base64
 import logging
 from functools import wraps
-from pathlib import Path
 
 import requests
 from flask import (Flask, render_template, request, redirect,
@@ -34,41 +33,16 @@ CONJUR_ACCOUNT = os.environ.get("CONJUR_ACCOUNT", "myConjurAccount")
 VERIFY         = os.environ.get("CONJUR_SSL_VERIFY", "true").lower() != "false"
 CONJUR_NS      = os.environ.get("CONJUR_NAMESPACE", "conjur")
 
-# Kubernetes in-cluster config
-_K8S_API    = "https://kubernetes.default.svc"
-_K8S_TOKEN  = Path("/var/run/secrets/kubernetes.io/serviceaccount/token")
-_K8S_CA     = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
 
-
-def _k8s_headers() -> dict:
-    if _K8S_TOKEN.exists():
-        return {"Authorization": f"Bearer {_K8S_TOKEN.read_text().strip()}"}
-    return {}
-
-
-def _get_conjur_logs(lines: int = 200) -> list:
-    """Fetch logs from conjur-oss container via Kubernetes API."""
-    try:
-        # Get pod name
-        pods_url = f"{_K8S_API}/api/v1/namespaces/{CONJUR_NS}/pods"
-        r = requests.get(pods_url, headers=_k8s_headers(),
-                        verify=_K8S_CA, timeout=5,
-                        params={"labelSelector": "app=conjur-oss"})
-        r.raise_for_status()
-        pod_name = r.json()["items"][0]["metadata"]["name"]
-
-        # Get logs
-        logs_url = (f"{_K8S_API}/api/v1/namespaces/{CONJUR_NS}"
-                    f"/pods/{pod_name}/log")
-        r = requests.get(logs_url, headers=_k8s_headers(),
-                        verify=_K8S_CA, timeout=10,
-                        params={"container": "conjur-oss",
-                                "tailLines": lines})
-        r.raise_for_status()
-        return r.text.splitlines()
-    except Exception as e:
-        log.warning("Could not fetch k8s logs: %s", e)
-        raise
+def _get_conjur_audit(limit: int = 100) -> list:
+    """Fetch audit events from Conjur's native /audit API endpoint."""
+    r = _session().get(
+        f"{CONJUR_URL}/audit",
+        headers=_headers(_token()),
+        params={"limit": limit},
+    )
+    r.raise_for_status()
+    return r.json()
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -337,35 +311,23 @@ def resources():
 @app.get("/audit")
 @login_required
 def audit():
-    """Fetch live Conjur pod logs filtered to security-relevant events."""
-    lines     = int(request.args.get("lines", 200))
+    """Fetch audit events from Conjur's native /audit API endpoint."""
+    limit     = int(request.args.get("lines", 100))
     filter_kw = request.args.get("filter", "")
     events    = []
     error     = None
     try:
-        raw_lines = _get_conjur_logs(lines)
-        skip = ["GET /health", "GET /", "200 OK", "StatusController",
-                "Parameters:", "Processing by Status", "kube-probe"]
-        keywords = ["authenticate", "policy", "CONJ000",
-                    "Failed", "Unauthorized", "permission", "secret",
-                    "403", "401", "successfully"]
-        for line in raw_lines:
-            # Always skip noisy health check lines
-            if any(x in line for x in skip):
+        raw = _get_conjur_audit(limit)
+        for e in raw:
+            # Each event is a dict with keys: timestamp, action, user, resource, success, message
+            if filter_kw and filter_kw.lower() not in str(e).lower():
                 continue
-            if filter_kw:
-                # User-defined filter — show any matching line
-                if filter_kw.lower() in line.lower():
-                    events.append(line)
-            else:
-                # Default — show security-relevant lines only
-                if any(k.lower() in line.lower() for k in keywords):
-                    events.append(line)
+            events.append(e)
     except Exception as e:
         error = str(e)
 
     return render_template("audit.html",
-                           events=events, lines=lines,
+                           events=events, lines=limit,
                            filter_kw=filter_kw, error=error,
                            audit_ready=True,
                            account=CONJUR_ACCOUNT,
