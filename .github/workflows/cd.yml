@@ -188,13 +188,18 @@ jobs:
 
       - name: DAST (OWASP ZAP)
         run: |
+          # webapp is port-forwarded at localhost:18080 and serves at /
+          # (the /app prefix is stripped by the ingress, not present on the service directly)
+          mkdir -p /tmp/zap-output
+          chmod 777 /tmp/zap-output
           docker run --rm --network host \
-            -v "${{ github.workspace }}:/zap/wrk:rw" \
+            -v "/tmp/zap-output:/zap/wrk:rw" \
             ghcr.io/zaproxy/zaproxy:stable zap-baseline.py \
-            -t "http://localhost:18080/app/" \
+            -t "http://localhost:18080/" \
             -I -J zap-report.json -r zap-report.html -x zap-report.xml \
-            --auto 2>&1 || true
-          if [ -f zap-report.xml ]; then
+            2>&1 || true
+          if [ -f /tmp/zap-output/zap-report.xml ]; then
+            cp /tmp/zap-output/zap-report.xml .
             python3 .zap/xml_to_sarif.py zap-report.xml zap-report.sarif || true
           fi
         continue-on-error: true
